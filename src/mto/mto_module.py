@@ -1,4 +1,4 @@
-"""Valence-adaptive MTO module with vectorized routing."""
+"""Valence-adaptive MTO module with batched, per-molecule slot routing."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,12 +7,19 @@ from .valence import molecular_valence_electrons
 
 
 class ValenceAdaptiveMTO(nn.Module):
+    """Valence-adaptive MTO: K = total valence electrons per molecule.
+
+    Operates molecule-by-molecule within a batch (variable N, variable K).
+    This is naturally sequential per molecule but the inner routing is vectorized.
+    """
+
     def __init__(self, feature_dim: int, hidden_dim: int = 64):
         super().__init__()
         self.feature_dim = feature_dim
         num_types = 20
         self.atom_type_emb = nn.Embedding(num_types, hidden_dim)
-        self.slot_emb = nn.Embedding(64, hidden_dim)
+        # Slot embeddings: we need up to ~80 for large molecules
+        self.slot_emb = nn.Embedding(128, hidden_dim)
         self.route_mlp = nn.Sequential(
             nn.Linear(feature_dim + hidden_dim + hidden_dim, hidden_dim),
             nn.SiLU(),
@@ -25,103 +32,78 @@ class ValenceAdaptiveMTO(nn.Module):
         )
 
     def forward(self, atom_features, z, batch):
-        # atom_features: [N_atoms, C]
-        # z: [N_atoms]
-        # batch: [N_atoms] —  molecule index for each atom
-        B = int(batch.max().item()) + 1
-        K_per_mol = molecular_valence_electrons(z, batch)  # [B]
-        K_max = int(K_per_mol.max().item())
+        z = z.clamp(0, 19)
+        type_emb = self.atom_type_emb(z)  # [N, H]
         device = atom_features.device
-
-        z_clamped = z.clamp(0, 19)
-        type_emb = self.atom_type_emb(z_clamped)  # [N, H]
-        slot_emb = self.slot_emb(torch.arange(K_max, device=device))  # [K_max, H]
-
-        # For each molecule, compute per-atom contributions via scatter
-        # Build output O and coeff matrices using segmented operations
-        N_atoms = atom_features.shape[0]
+        B = int(batch.max().item()) + 1
+        K_per_mol = molecular_valence_electrons(z, batch)
+        K_max = int(K_per_mol.max().item())
         C = self.feature_dim
         H = type_emb.shape[-1]
 
-        # Compute atom-slot interactions for all atoms simultaneously
-        # For each atom i, compute its interaction with slots k=0..K_max-1
-        # Expand: [N, K_max, C+2H] where each row is [af_i, type_emb_i, slot_emb_k]
-        af_exp = atom_features.unsqueeze(1).expand(-1, K_max, -1)  # [N, K_max, C]
-        te_exp = type_emb.unsqueeze(1).expand(-1, K_max, -1)     # [N, K_max, H]
-        se_exp = slot_emb.unsqueeze(0).expand(N_atoms, -1, -1)   # [N, K_max, H]
-        concat = torch.cat([af_exp, te_exp, se_exp], dim=-1)     # [N, K_max, C+2H]
+        # Pad atom features and embeddings per molecule
+        # Find max atoms per molecule
+        mol_sizes = torch.bincount(batch, minlength=B)  # [B]
+        N_max = int(mol_sizes.max().item())
 
-        # Softmax routing over atoms per molecule per slot
-        route_raw = self.route_mlp(concat).squeeze(-1)  # [N, K_max]
-        sign_raw = torch.tanh(self.sign_mlp(concat).squeeze(-1))  # [N, K_max]
-
-        # Build mask: which (atom, slot) pairs are valid
-        atom_has_slot = torch.zeros(B, K_max, dtype=torch.bool, device=device)
-        for b in range(B):
-            atom_has_slot[b, :K_per_mol[b]] = True
-
-        # Per-atom slot validity
-        slot_valid = torch.zeros(N_atoms, K_max, dtype=torch.bool, device=device)
-        for b in range(B):
-            mask_b = (batch == b)
-            slot_valid[mask_b, :K_per_mol[b]] = True
-
-        # Apply mask before softmax
-        route_masked = route_raw.masked_fill(~slot_valid, float('-inf'))
-
-        # Softmax over atoms per slot — need to do this within each molecule
-        # Use scatter-softmax pattern
-        # For slot k, softmax over atoms belonging to molecule b
-        coeff = torch.zeros(N_atoms, K_max, device=device)
+        # Build padded tensors: [B, N_max, ...]
+        af_pad = torch.zeros(B, N_max, C, device=device)
+        te_pad = torch.zeros(B, N_max, H, device=device)
+        z_pad = torch.zeros(B, N_max, dtype=torch.long, device=device)
+        atom_mask = torch.zeros(B, N_max, dtype=torch.bool, device=device)
 
         for b in range(B):
-            mask_b = (batch == b)
-            n_b = mask_b.sum().item()
-            K_b = int(K_per_mol[b])
-            route_b = route_masked[mask_b, :K_b]  # [n_b, K_b]
-            sign_b = sign_raw[mask_b, :K_b]         # [n_b, K_b]
-            a_kib = F.softmax(route_b, dim=0)  # softmax over atoms
-            c_kib = a_kib * sign_b
-            # Normalize
-            norm = c_kib.abs().sum(dim=0, keepdim=True).clamp(min=1e-8)
-            c_kib = c_kib / norm
-            coeff[mask_b, :K_b] = c_kib
+            mask_b = batch == b
+            n_b = mol_sizes[b].item()
+            af_pad[b, :n_b] = atom_features[mask_b]
+            te_pad[b, :n_b] = type_emb[mask_b]
+            z_pad[b, :n_b] = z[mask_b]
+            atom_mask[b, :n_b] = True
 
-        # Build O[k] = sum_i c_{k,i} * af_i
+        # Build slot embeddings for the whole batch
+        slot_emb = self.slot_emb(torch.arange(K_max, device=device))  # [K_max, H]
+
+        # Compute coefficients per molecule
         O = torch.zeros(B, K_max, C, device=device)
-        for b in range(B):
-            mask_b = (batch == b)
-            K_b = int(K_per_mol[b])
-            af_b = atom_features[mask_b]   # [n_b, C]
-            c_b = coeff[mask_b, :K_b]       # [n_b, K_b]
-            O[b, :K_b] = c_b.T @ af_b       # [K_b, n_b] @ [n_b, C] = [K_b, C]
-
+        coeff_full = torch.zeros(B, K_max, N_max, device=device)
         mask = torch.zeros(B, K_max, dtype=torch.bool, device=device)
-        for b in range(B):
-            mask[b, :K_per_mol[b]] = True
-
-        # Build padded coeff matrix
-        n_max = int(torch.bincount(batch).max().item())
-        coeff_padded = torch.zeros(B, K_max, n_max, device=device)
-        atom_mask_padded = torch.zeros(B, n_max, dtype=torch.bool, device=device)
-        for b in range(B):
-            mask_b = (batch == b)
-            n_b = mask_b.sum().item()
-            atom_idx_b = torch.where(mask_b)[0]
-            coeff_padded[b, :int(K_per_mol[b]), :n_b] = coeff[atom_idx_b, :int(K_per_mol[b])].T
-            atom_mask_padded[b, :n_b] = True
-
-        # coeff_flat_list for testing
         coeff_list = []
+
         for b in range(B):
-            mask_b = (batch == b)
-            coeff_list.append(coeff[mask_b, :int(K_per_mol[b])].T)
+            Kb = int(K_per_mol[b])
+            Nb = int(mol_sizes[b])
+            mask[b, :Kb] = True
+            if Kb == 0 or Nb == 0:
+                coeff_list.append(torch.zeros(Kb, Nb, device=device))
+                continue
+
+            af = af_pad[b, :Nb]   # [Nb, C]
+            te = te_pad[b, :Nb]   # [Nb, H]
+            se = slot_emb[:Kb]     # [Kb, H]
+
+            # Expand to [Nb, Kb, C+2H]
+            af_exp = af.unsqueeze(1).expand(Nb, Kb, C)
+            te_exp = te.unsqueeze(1).expand(Nb, Kb, H)
+            se_exp = se.unsqueeze(0).expand(Nb, Kb, H)
+            concat = torch.cat([af_exp, te_exp, se_exp], dim=-1)
+
+            # Routing
+            a = F.softmax(self.route_mlp(concat).squeeze(-1), dim=0)  # softmax over atoms
+            s = torch.tanh(self.sign_mlp(concat).squeeze(-1))
+            c = a * s  # [Nb, Kb]
+            # Normalize: sum_i |c_{ki}| = 1 per slot
+            norm = c.abs().sum(dim=0, keepdim=True).clamp(min=1e-8)
+            c = c / norm
+
+            coeff_full[b, :Kb, :Nb] = c.T  # [Kb, Nb]
+            O[b, :Kb] = c.T @ af  # [Kb, Nb] @ [Nb, C] = [Kb, C]
+            coeff_list.append(c.T)
 
         return {
             "O": O,
-            "coeff": coeff_padded,
+            "coeff": coeff_full,
             "mask": mask,
-            "atom_mask": atom_mask_padded,
+            "atom_mask": atom_mask,
             "K_per_mol": K_per_mol,
             "coeff_flat_list": coeff_list,
         }
