@@ -1,12 +1,10 @@
 """Training utilities for MTO-Net."""
 import json, os, time
-from typing import Optional
 import torch, torch.nn as nn
 from torch.utils.data import DataLoader
 from .losses import CompositeLoss, default_task_weights
 
 class NormalizationStats:
-    """Per-property mean/std for standardization."""
     def __init__(self):
         self.stats = {}
     def fit_tensors(self, key, tensors):
@@ -36,19 +34,20 @@ class Trainer:
         self.tasks = tasks
         self.criterion = CompositeLoss(task_weights or default_task_weights(tasks))
         self.optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
-        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer, mode="min", factor=0.5, patience=10)
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            self.optimizer, mode="min", factor=0.5, patience=10)
 
     def train_epoch(self, loader, norm_stats=None):
         self.model.train()
-        total_loss, n, task_losses = 0.0, 0, {}
+        total_loss, n = 0.0, 0
+        task_losses = {}
         for batch in loader:
             self.optimizer.zero_grad()
-            preds, targets = self._forward(batch, norm_stats)
-            loss, per_task = self.criterion(preds, targets)
-            loss.backward()
+            batch_loss, per_task = self._process_batch(batch, norm_stats)
+            batch_loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
             self.optimizer.step()
-            total_loss += loss.item()
+            total_loss += batch_loss.item()
             n += 1
             for k, v in per_task.items():
                 task_losses[k] = task_losses.get(k, 0.0) + v
@@ -59,27 +58,53 @@ class Trainer:
         self.model.eval()
         total_loss, n, task_losses = 0.0, 0, {}
         for batch in loader:
-            preds, targets = self._forward(batch, norm_stats)
-            loss, per_task = self.criterion(preds, targets)
-            total_loss += loss.item()
+            batch_loss, per_task = self._process_batch(batch, norm_stats)
+            total_loss += batch_loss.item()
             n += 1
             for k, v in per_task.items():
                 task_losses[k] = task_losses.get(k, 0.0) + v
         return {"loss": total_loss / n, "task_losses": {k: v / n for k, v in task_losses.items()}}
 
-    def _forward(self, batch, norm_stats):
-        z = batch["z"].to(self.device)
-        pos = batch["pos"].to(self.device)
-        batch_idx = batch.get("batch", torch.zeros(len(z), dtype=torch.long)).to(self.device)
-        out = self.model(z=z, pos=pos, batch=batch_idx)
-        preds, targets = {}, {}
-        for task in self.tasks:
-            if task in out and task in batch:
-                targets[task] = batch[task].to(self.device)
-                preds[task] = out[task]
-        if norm_stats is not None:
-            targets = {k: norm_stats.normalize(k, v) for k, v in targets.items()}
-        return preds, targets
+    def _process_batch(self, batch, norm_stats):
+        """Process a batch of molecules (one sample per batch item)."""
+        total_loss = 0.0
+        per_task = {}
+        B = len(batch["z"]) if isinstance(batch["z"], list) else batch["z"].shape[0]
+
+        for i in range(B):
+            if isinstance(batch["z"], list):
+                z_i = batch["z"][i].to(self.device)
+                pos_i = batch["pos"][i].to(self.device)
+                batch_i = torch.zeros(len(z_i), dtype=torch.long, device=self.device)
+            else:
+                z_i = batch["z"][i].to(self.device)
+                pos_i = batch["pos"][i].to(self.device)
+                batch_i = batch.get("batch", torch.zeros(len(z_i), dtype=torch.long))[i].to(self.device)
+
+            out_i = self.model(z=z_i, pos=pos_i, batch=batch_i)
+
+            preds_i, targets_i = {}, {}
+            for task in self.tasks:
+                if task in out_i and task in batch:
+                    t = batch[task]
+                    if isinstance(t, list):
+                        t_i = t[i]
+                    elif t.dim() >= 1:
+                        t_i = t[i]
+                    else:
+                        t_i = t
+                    t_i = t_i.to(self.device)
+                    if norm_stats is not None:
+                        t_i = norm_stats.normalize(task, t_i.unsqueeze(0)).squeeze(0)
+                    targets_i[task] = t_i
+                    preds_i[task] = out_i[task].squeeze(0)
+
+            loss_i, per_task_i = self.criterion(preds_i, targets_i)
+            total_loss = total_loss + loss_i
+            for k, v in per_task_i.items():
+                per_task[k] = per_task.get(k, 0.0) + v
+
+        return total_loss / B, {k: v / B for k, v in per_task.items()}
 
     def fit(self, train_loader, val_loader, epochs, norm_stats=None, checkpoint_dir=None, log_interval=10):
         best_val_loss = float("inf")
@@ -92,7 +117,6 @@ class Trainer:
             history["train"].append(train_m)
             history["val"].append(val_m)
 
-            # Save last checkpoint every epoch
             if checkpoint_dir:
                 os.makedirs(checkpoint_dir, exist_ok=True)
                 last_path = os.path.join(checkpoint_dir, "last.pt")
@@ -116,7 +140,8 @@ class Trainer:
                 }, best_path)
 
             if epoch % log_interval == 0:
-                print("Epoch {:4d} | train loss: {:.4f} | val loss: {:.4f}".format(epoch, train_m["loss"], val_m["loss"]))
+                print("Epoch {:4d} | train loss: {:.4f} | val loss: {:.4f}".format(
+                    epoch, train_m["loss"], val_m["loss"]))
 
         return history, best_path
 
