@@ -9,6 +9,7 @@
 cd /data/home/scwc008/run/xxy/MTO
 source /usr/share/modules/init/sh
 module load miniforge3/25.11.0-1
+export PYTHONUNBUFFERED=1
 
 echo "Host: $(hostname)"
 echo "GPU: $(nvidia-smi -L 2>/dev/null || echo none)"
@@ -16,7 +17,7 @@ echo "Date: $(date)"
 
 for seed in 0 1 2; do
   echo "=== Full Stage A seed=$seed ==="
-  conda run -n py310-torch270-vllm090 python scripts/train_stage.py \
+  conda run -n py310-torch270-vllm090 python -u scripts/train_stage.py \
     --stage stage_a \
     --data-dir data/qm9s \
     --epochs 50 --seed $seed --batch-size 8 \
