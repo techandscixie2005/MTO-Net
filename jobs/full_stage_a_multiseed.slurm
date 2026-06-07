@@ -10,7 +10,6 @@ export PYTHONUNBUFFERED=1
 cd /data/home/scwc008/run/xxy/MTO
 source /usr/share/modules/init/sh
 module load miniforge3/25.11.0-1
-
 PYTHON=/data/apps/miniforge3/25.11.0-1/envs/py310-torch270-vllm090/bin/python
 
 echo "Host: $(hostname)"
@@ -22,10 +21,11 @@ for seed in 0 1 2; do
   $PYTHON -u scripts/train_stage.py \
     --stage stage_a \
     --data-dir data/qm9s \
-    --epochs 50 --seed $seed --batch-size 8 \
+    --epochs 50 --seed $seed --batch-size 16 \
+    --feature-dim 128 --maxl 3 --num-block 3 \
     --checkpoint-dir outputs/checkpoints
   echo "=== Seed $seed done at $(date) ==="
-  ls -lh outputs/checkpoints/ 2>/dev/null
 done
 
-echo "Done: $(date)"
+echo "All done: $(date)"
+ls -lh outputs/checkpoints/ 2>/dev/null
