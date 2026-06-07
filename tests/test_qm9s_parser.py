@@ -31,13 +31,17 @@ def test_dataset_alpha_shapes():
 
 def test_collate_batch():
     from src.mto.dataset_qm9s import collate_batch
-    batch = [
-        {"z": torch.tensor([6, 8, 1, 1]), "pos": torch.randn(4, 3),
-         "mu": torch.tensor([0.1, 0.2, 0.3])},
-        {"z": torch.tensor([6, 1, 1, 1, 1]), "pos": torch.randn(5, 3),
-         "mu": torch.tensor([0.4, 0.5, 0.6])},
-    ]
-    result = collate_batch(batch)
+    mol1 = MagicMock()
+    mol1.z = torch.tensor([6, 8, 1, 1])
+    mol1.pos = torch.randn(4, 3)
+    mol1.dipole = torch.tensor([0.1, 0.2, 0.3]).unsqueeze(0)
+    mol1.polar = torch.eye(3).unsqueeze(0)
+    mol2 = MagicMock()
+    mol2.z = torch.tensor([6, 1, 1, 1, 1])
+    mol2.pos = torch.randn(5, 3)
+    mol2.dipole = torch.tensor([0.4, 0.5, 0.6]).unsqueeze(0)
+    mol2.polar = torch.eye(3).unsqueeze(0)
+    result = collate_batch([mol1, mol2])
     assert result["z"].shape == (9,)
     assert result["pos"].shape == (9, 3)
     assert result["mu"].shape == (2, 3)

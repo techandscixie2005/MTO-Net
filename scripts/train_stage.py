@@ -10,10 +10,18 @@ from src.mto.training import Trainer, NormalizationStats
 from src.mto.dataset_qm9s import load_qm9s_raw, QM9SDataset, make_split, collate_batch
 
 def get_stage_tasks(stage):
-    tasks = {"stage_a": ["mu", "alpha"],
-             "stage_b": ["mu", "alpha", "ir", "raman"],
-             "stage_c": ["mu", "alpha", "ir", "raman", "uv"]}
-    return tasks[stage]
+    return {"stage_a": ["mu", "alpha"], "stage_b": ["mu", "alpha", "ir", "raman"],
+            "stage_c": ["mu", "alpha", "ir", "raman", "uv"]}[stage]
+
+class LazySubset(torch.utils.data.Dataset):
+    """Lazy dataset: wraps PyG Data list + indices, extracts on access."""
+    def __init__(self, data_list, indices):
+        self.data = data_list
+        self.indices = indices
+    def __len__(self):
+        return len(self.indices)
+    def __getitem__(self, idx):
+        return self.data[self.indices[idx]]
 
 def main():
     parser = argparse.ArgumentParser()
@@ -28,53 +36,57 @@ def main():
     parser.add_argument("--num-block", type=int, default=3)
     parser.add_argument("--rc", type=float, default=5.0)
     parser.add_argument("--checkpoint-dir", default="outputs/checkpoints")
-    parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device:", str(device))
     print("Stage:", args.stage)
-    print("Data:", args.data_dir)
 
     pt_path = os.path.join(args.data_dir, "qm9s.pt")
     if not os.path.exists(pt_path):
-        pt_path_alt = os.path.join("data/qm9s", "qm9s.pt")
-        if os.path.exists(pt_path_alt):
-            pt_path = pt_path_alt
-        else:
-            raise FileNotFoundError("qm9s.pt not found")
+        pt_path = os.path.join("data/qm9s", "qm9s.pt")
+    if not os.path.exists(pt_path):
+        raise FileNotFoundError("qm9s.pt not found")
 
     print("Loading QM9S from", pt_path)
     raw_data = load_qm9s_raw(pt_path)
     print("Loaded", len(raw_data), "molecules")
 
-    dataset = QM9SDataset(raw_data)
-    splits = make_split(dataset, train_frac=0.8, val_frac=0.1, seed=args.seed)
-    print("Train:", len(splits["train"]), "Val:", len(splits["val"]), "Test:", len(splits["test"]))
+    # Split indices directly (no dict conversion)
+    n_total = len(raw_data)
+    indices = list(range(n_total))
+    rng = __import__("random").Random(args.seed)
+    rng.shuffle(indices)
+    n_train = int(n_total * 0.8)
+    n_val = int(n_total * 0.1)
+
+    train_indices = indices[:n_train]
+    val_indices = indices[n_train:n_train + n_val]
+    print("Train:", n_train, "Val:", n_val, "Test:", n_total - n_train - n_val)
 
     tasks = get_stage_tasks(args.stage)
     print("Tasks:", tasks)
 
-    class ListDataset(torch.utils.data.Dataset):
-        def __init__(self, subset):
-            self.data = [dataset[i] for i in subset.indices]
-        def __len__(self):
-            return len(self.data)
-        def __getitem__(self, idx):
-            return self.data[idx]
+    train_loader = DataLoader(LazySubset(raw_data, train_indices),
+                              batch_size=args.batch_size, shuffle=True,
+                              collate_fn=collate_batch)
+    val_loader = DataLoader(LazySubset(raw_data, val_indices),
+                            batch_size=args.batch_size, shuffle=False,
+                            collate_fn=collate_batch)
 
-    train_ds = ListDataset(splits["train"])
-    val_ds = ListDataset(splits["val"])
-
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=collate_batch)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=collate_batch)
-
-    # Normalization stats on training split (sampled)
+    # Normalization stats: sample 2000 mols
     norm_stats = NormalizationStats()
-    print("Computing normalization stats...")
+    print("Computing normalization stats (sampling 2000)...")
+    sample_indices = indices[:2000]
     for task in tasks:
-        tensors = [s[task] for s in train_ds.data[:2000] if task in s]
+        tensors = []
+        for i in sample_indices:
+            mol = raw_data[i]
+            if task == "mu" and hasattr(mol, "dipole"):
+                tensors.append(mol.dipole.float().reshape(-1))
+            elif task == "alpha" and hasattr(mol, "polar"):
+                tensors.append(mol.polar.float().reshape(-1))
         if tensors:
             norm_stats.fit_tensors(task, tensors)
             s = norm_stats.stats[task]

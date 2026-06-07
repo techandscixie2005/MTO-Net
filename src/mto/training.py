@@ -70,21 +70,15 @@ class Trainer:
         z = batch["z"].to(self.device)
         pos = batch["pos"].to(self.device)
         batch_idx = batch["batch"].to(self.device)
-
         out = self.model(z=z, pos=pos, batch=batch_idx)
-
         targets = {}
         for task in self.tasks:
             if task in batch:
-                t = batch[task]
-                if isinstance(t, list):
-                    t = torch.stack(t)
-                targets[task] = t.to(self.device)
+                t = batch[task].to(self.device)
                 if norm_stats is not None:
-                    targets[task] = norm_stats.normalize(task, targets[task])
-
-        preds = out
-        return self.criterion(preds, targets)
+                    t = norm_stats.normalize(task, t)
+                targets[task] = t
+        return self.criterion(out, targets)
 
     def fit(self, train_loader, val_loader, epochs, norm_stats=None, checkpoint_dir=None, log_interval=10):
         best_val_loss = float("inf")
@@ -100,8 +94,8 @@ class Trainer:
                 os.makedirs(checkpoint_dir, exist_ok=True)
                 torch.save({"model_state_dict": self.model.state_dict(),
                             "optimizer_state_dict": self.optimizer.state_dict(),
-                            "epoch": epoch, "val_loss": val_m["loss"], "history": history,
-                            "train_loss": train_m["loss"]},
+                            "epoch": epoch, "val_loss": val_m["loss"],
+                            "history": history, "train_loss": train_m["loss"]},
                            os.path.join(checkpoint_dir, "last.pt"))
             if val_m["loss"] < best_val_loss and checkpoint_dir:
                 best_val_loss = val_m["loss"]
@@ -115,14 +109,3 @@ class Trainer:
                 print("Epoch {:4d} | train: {:.4f} | val: {:.4f}".format(
                     epoch, train_m["loss"], val_m["loss"]))
         return history, best_path
-
-def compute_metrics(preds, targets):
-    import numpy as np
-    metrics = {}
-    for task in preds:
-        p = preds[task].detach().cpu().numpy()
-        t = targets[task].detach().cpu().numpy()
-        metrics[task] = {"mae": float(np.mean(np.abs(p - t))),
-                         "rmse": float(np.sqrt(np.mean((p - t) ** 2))),
-                         "r2": float(1 - np.sum((t-p)**2)/(np.sum((t-np.mean(t))**2)+1e-10))}
-    return metrics
