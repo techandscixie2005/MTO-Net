@@ -44,11 +44,11 @@ class Trainer:
         total_loss, n, task_losses = 0.0, 0, {}
         for batch in loader:
             self.optimizer.zero_grad()
-            batch_loss, per_task = self._process_batch(batch, norm_stats)
-            batch_loss.backward()
+            loss, per_task = self._forward(batch, norm_stats)
+            loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
             self.optimizer.step()
-            total_loss += batch_loss.item()
+            total_loss += loss.item()
             n += 1
             for k, v in per_task.items():
                 task_losses[k] = task_losses.get(k, 0.0) + v
@@ -59,36 +59,32 @@ class Trainer:
         self.model.eval()
         total_loss, n, task_losses = 0.0, 0, {}
         for batch in loader:
-            batch_loss, per_task = self._process_batch(batch, norm_stats)
-            total_loss += batch_loss.item()
+            loss, per_task = self._forward(batch, norm_stats)
+            total_loss += loss.item()
             n += 1
             for k, v in per_task.items():
                 task_losses[k] = task_losses.get(k, 0.0) + v
         return {"loss": total_loss / n, "task_losses": {k: v / n for k, v in task_losses.items()}}
 
-    def _process_batch(self, batch, norm_stats):
-        B = len(batch["z"]) if isinstance(batch["z"], list) else batch["z"].shape[0]
-        total_loss, per_task = 0.0, {}
-        for i in range(B):
-            z_i = (batch["z"][i] if isinstance(batch["z"], list) else batch["z"][i]).to(self.device)
-            pos_i = (batch["pos"][i] if isinstance(batch["pos"], list) else batch["pos"][i]).to(self.device)
-            batch_i = torch.zeros(len(z_i), dtype=torch.long, device=self.device)
-            out_i = self.model(z=z_i, pos=pos_i, batch=batch_i)
-            preds_i, targets_i = {}, {}
-            for task in self.tasks:
-                if task in out_i and task in batch:
-                    t = batch[task]
-                    t_i = t[i] if isinstance(t, list) else t[i]
-                    t_i = t_i.to(self.device)
-                    if norm_stats is not None:
-                        t_i = norm_stats.normalize(task, t_i.unsqueeze(0)).squeeze(0)
-                    targets_i[task] = t_i
-                    preds_i[task] = out_i[task].squeeze(0)
-            loss_i, per_task_i = self.criterion(preds_i, targets_i)
-            total_loss = total_loss + loss_i
-            for k, v in per_task_i.items():
-                per_task[k] = per_task.get(k, 0.0) + v
-        return total_loss / B, {k: v / B for k, v in per_task.items()}
+    def _forward(self, batch, norm_stats):
+        z = batch["z"].to(self.device)
+        pos = batch["pos"].to(self.device)
+        batch_idx = batch["batch"].to(self.device)
+
+        out = self.model(z=z, pos=pos, batch=batch_idx)
+
+        targets = {}
+        for task in self.tasks:
+            if task in batch:
+                t = batch[task]
+                if isinstance(t, list):
+                    t = torch.stack(t)
+                targets[task] = t.to(self.device)
+                if norm_stats is not None:
+                    targets[task] = norm_stats.normalize(task, targets[task])
+
+        preds = out
+        return self.criterion(preds, targets)
 
     def fit(self, train_loader, val_loader, epochs, norm_stats=None, checkpoint_dir=None, log_interval=10):
         best_val_loss = float("inf")
@@ -116,7 +112,8 @@ class Trainer:
                             "best_val_loss": best_val_loss, "val_metrics": val_m,
                             "train_loss": train_m["loss"], "history": history}, best_path)
             if epoch % log_interval == 0:
-                print("Epoch {:4d} | train: {:.4f} | val: {:.4f}".format(epoch, train_m["loss"], val_m["loss"]))
+                print("Epoch {:4d} | train: {:.4f} | val: {:.4f}".format(
+                    epoch, train_m["loss"], val_m["loss"]))
         return history, best_path
 
 def compute_metrics(preds, targets):

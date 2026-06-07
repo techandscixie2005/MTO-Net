@@ -27,18 +27,21 @@ def test_dataset_alpha_shapes():
     mol.polar = torch.eye(3).unsqueeze(0)
     ds = QM9SDataset([mol])
     alpha = ds[0]["alpha"]
-    # polar [1,3,3] flattened to [9]
     assert list(alpha.shape) == [9]
 
-def test_collate_fn():
-    from src.mto.dataset_qm9s import collate_fn
+def test_collate_batch():
+    from src.mto.dataset_qm9s import collate_batch
     batch = [
-        {"z": torch.tensor([6, 8, 1, 1]), "mu": torch.tensor([0.1, 0.2, 0.3])},
-        {"z": torch.tensor([6, 1, 1, 1, 1]), "mu": torch.tensor([0.4, 0.5, 0.6])},
+        {"z": torch.tensor([6, 8, 1, 1]), "pos": torch.randn(4, 3),
+         "mu": torch.tensor([0.1, 0.2, 0.3])},
+        {"z": torch.tensor([6, 1, 1, 1, 1]), "pos": torch.randn(5, 3),
+         "mu": torch.tensor([0.4, 0.5, 0.6])},
     ]
-    result = collate_fn(batch)
-    assert isinstance(result["z"], list)
+    result = collate_batch(batch)
+    assert result["z"].shape == (9,)
+    assert result["pos"].shape == (9, 3)
     assert result["mu"].shape == (2, 3)
+    assert result["batch"].shape == (9,)
 
 def test_make_split():
     from src.mto.dataset_qm9s import QM9SDataset, make_split
