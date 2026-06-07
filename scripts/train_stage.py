@@ -46,6 +46,7 @@ def main():
     parser.add_argument("--num-block", type=int, default=3)
     parser.add_argument("--rc", type=float, default=5.0)
     parser.add_argument("--checkpoint-dir", default="outputs/checkpoints")
+    parser.add_argument("--max-mols", type=int, default=0, help="Limit total mols (0=all)")
     args = parser.parse_args()
 
     torch.manual_seed(args.seed)
@@ -59,6 +60,11 @@ def main():
     log("Loading QM9S from", pt_path)
     raw_data = load_qm9s_raw(pt_path)
     log("Loaded", len(raw_data), "molecules")
+
+    # Limit molecules for fast smoke testing
+    if args.max_mols > 0 and args.max_mols < len(raw_data):
+        raw_data = raw_data[:args.max_mols]
+        log("Limited to", len(raw_data), "molecules")
 
     n_total = len(raw_data)
     indices = list(range(n_total))
@@ -76,14 +82,17 @@ def main():
 
     train_loader = DataLoader(LazySubset(raw_data, train_indices),
                               batch_size=args.batch_size, shuffle=True,
-                              collate_fn=collate_batch)
-    val_loader = DataLoader(LazySubset(raw_data, val_indices),
+                              collate_fn=collate_batch, num_workers=0,
+                              pin_memory=True if device.type == "cuda" else False)
+    # Only load val if training
+    val_indices_subset = val_indices[:min(len(val_indices), 2000)]
+    val_loader = DataLoader(LazySubset(raw_data, val_indices_subset),
                             batch_size=args.batch_size, shuffle=False,
                             collate_fn=collate_batch)
 
     norm_stats = NormalizationStats()
     log("Computing normalization stats (sampling 2000)...")
-    sample_indices = indices[:2000]
+    sample_indices = indices[:min(len(indices), 2000)]
     for task in tasks:
         tensors = []
         for i in sample_indices:
@@ -103,14 +112,6 @@ def main():
     n_params = sum(p.numel() for p in model.parameters())
     log("Model params:", f"{n_params:,}")
 
-    git_hash = "unknown"
-    try:
-        r = subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True)
-        if r.returncode == 0:
-            git_hash = r.stdout.strip()
-    except Exception:
-        pass
-
     ckpt_dir = os.path.join(args.checkpoint_dir, args.stage + "_seed" + str(args.seed))
     trainer = Trainer(model, device, tasks, lr=args.lr)
     log("Starting training...")
@@ -127,7 +128,7 @@ def main():
         "params": n_params, "device": str(device),
         "best_val_loss": history["val"][-1]["loss"] if history["val"] else None,
         "final_train_loss": history["train"][-1]["loss"] if history["train"] else None,
-        "git_hash": git_hash, "best_checkpoint": best_path, "tasks": tasks,
+        "best_checkpoint": best_path, "tasks": tasks,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
     with open(os.path.join(metrics_dir, args.stage + "_seed" + str(args.seed) + "_metrics.json"), "w") as f:
