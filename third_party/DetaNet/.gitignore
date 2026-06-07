@@ -1,0 +1,6 @@
+*.pth
+*.pth.tar
+*.pt
+*.ckpt
+*.pdf
+trained_param/
