@@ -1,0 +1,55 @@
+{
+  "article_id": "24235333",
+  "title": "QM9S dataset",
+  "doi": "10.6084/m9.figshare.24235333.v3",
+  "download_timestamp": "2026-06-07T09:36:01Z",
+  "files": [
+    {
+      "name": "atomic_energy_reference.txt",
+      "size": 91,
+      "status": "not_downloaded"
+    },
+    {
+      "name": "readme.txt",
+      "size": 3944,
+      "status": "not_downloaded"
+    },
+    {
+      "name": "ext_val.zip",
+      "size": 139973998,
+      "status": "not_downloaded"
+    },
+    {
+      "name": "ext_val_env.zip",
+      "size": 140153876,
+      "status": "not_downloaded"
+    },
+    {
+      "name": "uv_boraden.csv",
+      "size": 1538963699,
+      "status": "not_downloaded"
+    },
+    {
+      "name": "qm9s.pt",
+      "size": 2876992905,
+      "status": "not_downloaded"
+    },
+    {
+      "name": "qm9s_csv.zip",
+      "size": 3716855812,
+      "status": "not_downloaded"
+    },
+    {
+      "name": "ir_boraden.csv",
+      "size": 8733673295,
+      "status": "not_downloaded"
+    },
+    {
+      "name": "raman_boraden.csv",
+      "size": 8784506743,
+      "status": "not_downloaded"
+    }
+  ],
+  "download_status": "manual_required",
+  "note": "Figshare API blocked from HPC (HTTP 403). Download files manually to data/qm9s/."
+}

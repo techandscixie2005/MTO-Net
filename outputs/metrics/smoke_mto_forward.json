@@ -1,0 +1,49 @@
+{
+  "num_mols": 3,
+  "num_atoms": 16,
+  "z_shape": [
+    16
+  ],
+  "pos_shape": [
+    16,
+    3
+  ],
+  "batch_shape": [
+    16
+  ],
+  "feature_dim": 128,
+  "atom_features_shape": [
+    16,
+    128
+  ],
+  "K_per_mol": [
+    20,
+    12,
+    8
+  ],
+  "O_shape": [
+    3,
+    20,
+    128
+  ],
+  "coeff_shape": [
+    3,
+    20,
+    9
+  ],
+  "mask_shape": [
+    3,
+    20
+  ],
+  "atom_mask_shape": [
+    3,
+    9
+  ],
+  "any_nan": false,
+  "molecules": [
+    "ethanol",
+    "formaldehyde",
+    "water"
+  ],
+  "synthetic": true
+}

@@ -1,6 +1,8 @@
-data/qm9s/**
+data/qm9s/*
+!data/qm9s/MANIFEST.json
+!data/qm9s/README.md
 !data/qm9s/.gitkeep
-outputs/**
+outputs/*
 !outputs/.gitkeep
 !outputs/figures/
 !outputs/logs/
