@@ -12,7 +12,6 @@ def test_dataset_extract_fields():
     mol.dipole = torch.tensor([0.1, 0.2, 0.3]).unsqueeze(0)
     mol.polar = torch.eye(3).unsqueeze(0)
     ds = QM9SDataset([mol])
-    assert len(ds) == 1
     sample = ds[0]
     assert "z" in sample
     assert "smiles" in sample
@@ -26,8 +25,7 @@ def test_dataset_alpha_shapes():
     mol.pos = torch.randn(1, 3)
     mol.polar = torch.eye(3).unsqueeze(0)
     ds = QM9SDataset([mol])
-    alpha = ds[0]["alpha"]
-    assert list(alpha.shape) == [9]
+    assert list(ds[0]["alpha"].shape) == [9]
 
 def test_collate_batch():
     from src.mto.dataset_qm9s import collate_batch

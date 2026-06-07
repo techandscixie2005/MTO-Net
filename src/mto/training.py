@@ -106,6 +106,6 @@ class Trainer:
                             "best_val_loss": best_val_loss, "val_metrics": val_m,
                             "train_loss": train_m["loss"], "history": history}, best_path)
             if epoch % log_interval == 0:
-                print("Epoch {:4d} | train: {:.4f} | val: {:.4f}".format(
-                    epoch, train_m["loss"], val_m["loss"]))
+                print("EPOCH {:4d} | train: {:.4f} | val: {:.4f}".format(
+                    epoch, train_m["loss"], val_m["loss"]), flush=True)
         return history, best_path

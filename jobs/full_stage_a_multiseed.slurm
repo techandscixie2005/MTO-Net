@@ -19,9 +19,13 @@ echo "Date: $(date)"
 
 for seed in 0 1 2; do
   echo "=== Full Stage A seed=$seed ==="
-  $PYTHON -u scripts/train_stage.py --stage stage_a --data-dir data/qm9s --epochs 50 --seed $seed --batch-size 8 --checkpoint-dir outputs/checkpoints
+  $PYTHON -u scripts/train_stage.py \
+    --stage stage_a \
+    --data-dir data/qm9s \
+    --epochs 50 --seed $seed --batch-size 8 \
+    --checkpoint-dir outputs/checkpoints
   echo "=== Seed $seed done at $(date) ==="
-  ls -lh outputs/checkpoints/
+  ls -lh outputs/checkpoints/ 2>/dev/null
 done
 
 echo "Done: $(date)"

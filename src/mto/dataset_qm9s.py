@@ -25,8 +25,10 @@ class QM9SDataset(Dataset):
             if hasattr(mol, "polar"):
                 s["alpha"] = mol.polar.float().reshape(9)
             self.samples.append(s)
+
     def __len__(self):
         return len(self.samples)
+
     def __getitem__(self, idx):
         return self.samples[idx]
 
@@ -47,20 +49,15 @@ def collate_batch(batch):
     z_all = torch.cat([d.z for d in batch])
     pos_all = torch.cat([d.pos for d in batch])
     batch_idx = torch.cat([torch.full((len(d.z),), i, dtype=torch.long) for i, d in enumerate(batch)])
-
     result = {"z": z_all, "pos": pos_all, "batch": batch_idx}
-
-    # Labels
     mu_list, alpha_list = [], []
     for d in batch:
         if hasattr(d, "dipole"):
             mu_list.append(d.dipole.float().reshape(3))
         if hasattr(d, "polar"):
             alpha_list.append(d.polar.float().reshape(9))
-
     if mu_list:
         result["mu"] = torch.stack(mu_list)
     if alpha_list:
         result["alpha"] = torch.stack(alpha_list)
-
     return result
