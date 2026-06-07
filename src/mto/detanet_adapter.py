@@ -1,9 +1,10 @@
 """Adapter to expose DetaNet atom-level hidden representations for MTO."""
 
+import os
+import sys
+
 import torch
 import torch.nn as nn
-import sys
-import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "third_party", "DetaNet"))
 
@@ -36,7 +37,6 @@ class DetaNetBackboneAdapter(nn.Module):
             device=device,
         )
         self.num_features = num_features
-        self.device = device
 
     def forward(self, z, pos, batch=None, edge_index=None):
         S, T = self.backbone(z=z, pos=pos, batch=batch, edge_index=edge_index)

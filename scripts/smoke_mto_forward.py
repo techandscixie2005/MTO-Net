@@ -1,58 +1,17 @@
 #!/usr/bin/env python3
-"""Smoke test for MTO forward pass using DetaNet backbone with synthetic molecules."""
+"""Smoke test for MTO forward pass using synthetic molecules."""
 
-import sys
-import os
 import json
+import os
+import sys
 import argparse
 
 import torch
-import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from src.mto.valence import molecular_valence_electrons, VALENCE_ELECTRONS
+from src.mto.molecule_builder import make_ethanol, make_formaldehyde, make_water
 from src.mto.mto_module import ValenceAdaptiveMTO
-
-
-def make_ethanol():
-    z = torch.tensor([6, 6, 8, 1, 1, 1, 1, 1, 1])
-    pos = torch.tensor([
-        [-0.750, 0.000, 0.000],
-        [0.750, 0.000, 0.000],
-        [1.450, 1.390, 0.000],
-        [-1.200, 0.940, 0.000],
-        [-1.200, -0.500, -0.880],
-        [-1.200, -0.500, 0.880],
-        [1.200, -0.500, -0.880],
-        [1.200, -0.500, 0.880],
-        [2.440, 1.240, 0.000],
-    ], dtype=torch.float32)
-    batch = torch.zeros(9, dtype=torch.long)
-    return z, pos, batch
-
-
-def make_formaldehyde():
-    z = torch.tensor([6, 8, 1, 1])
-    pos = torch.tensor([
-        [0.000, 0.000, 0.000],
-        [1.200, 0.000, 0.000],
-        [-0.580, 0.950, 0.000],
-        [-0.580, -0.950, 0.000],
-    ], dtype=torch.float32)
-    batch = torch.zeros(4, dtype=torch.long)
-    return z, pos, batch
-
-
-def make_water():
-    z = torch.tensor([8, 1, 1])
-    pos = torch.tensor([
-        [0.000, 0.000, 0.117],
-        [0.000, 0.757, -0.469],
-        [0.000, -0.757, -0.469],
-    ], dtype=torch.float32)
-    batch = torch.zeros(3, dtype=torch.long)
-    return z, pos, batch
 
 
 def main():
@@ -62,14 +21,9 @@ def main():
     parser.add_argument("--use-detanet", action="store_true", default=False)
     args = parser.parse_args()
 
-    print("=== MTO Smoke Forward Test ===\n")
+    print("=== MTO Smoke Forward Test ===")
 
-    use_synthetic = True
-    mol_data = [
-        make_ethanol(),
-        make_formaldehyde(),
-        make_water(),
-    ]
+    mol_data = [make_ethanol(), make_formaldehyde(), make_water()]
 
     all_z = torch.cat([m[0] for m in mol_data])
     all_pos = torch.cat([m[1] for m in mol_data])
@@ -104,7 +58,6 @@ def main():
 
     print(f"atom_features shape: {list(atom_features.shape)}")
 
-    # MTO forward
     mto = ValenceAdaptiveMTO(feature_dim=C)
     out = mto(atom_features=atom_features, z=all_z, batch=all_batch)
 
@@ -118,7 +71,6 @@ def main():
     for bi in range(len(mol_data)):
         Kb = int(K_per_mol[bi])
         n_atoms = int(atom_mask[bi].sum().item())
-        v_str = f" (val: {Kb})"
         print(f"  mol[{bi}] {labels[bi]}: K={Kb}, atoms={n_atoms}")
 
     print(f"\nO shape: {list(O.shape)}")
@@ -134,7 +86,6 @@ def main():
     if not has_nan:
         print("any NaN? False")
 
-    # Save summary
     summary = {
         "num_mols": len(mol_data),
         "num_atoms": int(len(all_z)),
@@ -150,7 +101,7 @@ def main():
         "atom_mask_shape": list(atom_mask.shape),
         "any_nan": has_nan,
         "molecules": labels,
-        "synthetic": use_synthetic,
+        "synthetic": True,
     }
     os.makedirs("outputs/metrics", exist_ok=True)
     with open("outputs/metrics/smoke_mto_forward.json", "w") as f:
