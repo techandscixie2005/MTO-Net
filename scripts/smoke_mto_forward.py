@@ -34,14 +34,12 @@ def main():
     labels = ["ethanol", "formaldehyde", "water"]
 
     print(f"Batch: {len(mol_data)} molecules, {len(all_z)} atoms")
-    print(f"z shape: {list(all_z.shape)}")
-    print(f"pos shape: {list(all_pos.shape)}")
-    print(f"batch shape: {list(all_batch.shape)}")
 
     C = args.feature_dim
 
     if args.use_detanet:
         print("\nLoading DetaNet backbone...")
+        from src.mto.compat import *
         from src.mto.detanet_adapter import DetaNetBackboneAdapter
         device = torch.device("cpu")
         backbone = DetaNetBackboneAdapter(
@@ -76,7 +74,6 @@ def main():
     print(f"\nO shape: {list(O.shape)}")
     print(f"coeff shape: {list(coeff.shape)}")
     print(f"mask shape: {list(mask.shape)}")
-    print(f"atom_mask shape: {list(atom_mask.shape)}")
 
     has_nan = False
     for key in ["O", "coeff"]:
@@ -89,16 +86,11 @@ def main():
     summary = {
         "num_mols": len(mol_data),
         "num_atoms": int(len(all_z)),
-        "z_shape": list(all_z.shape),
-        "pos_shape": list(all_pos.shape),
-        "batch_shape": list(all_batch.shape),
         "feature_dim": C,
         "atom_features_shape": list(atom_features.shape),
         "K_per_mol": K_per_mol.tolist(),
         "O_shape": list(O.shape),
         "coeff_shape": list(coeff.shape),
-        "mask_shape": list(mask.shape),
-        "atom_mask_shape": list(atom_mask.shape),
         "any_nan": has_nan,
         "molecules": labels,
         "synthetic": True,

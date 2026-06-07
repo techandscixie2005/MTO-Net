@@ -1,0 +1,8 @@
+# MTO-Net model config
+feature_dim: 128
+mto_hidden_dim: 64
+readout_hidden_dim: 128
+detanet_kwargs:
+  maxl: 3
+  num_block: 3
+  rc: 5.0

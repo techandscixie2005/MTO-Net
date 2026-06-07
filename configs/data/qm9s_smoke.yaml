@@ -1,0 +1,7 @@
+data_dir: data/qm9s/subset_smoke
+processed_dir: data/qm9s/subset_smoke/processed
+batch_size: 4
+num_workers: 1
+train_frac: 0.7
+val_frac: 0.15
+seed: 0

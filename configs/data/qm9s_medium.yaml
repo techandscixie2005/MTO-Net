@@ -1,0 +1,7 @@
+data_dir: data/qm9s/subset_medium
+processed_dir: data/qm9s/subset_medium/processed
+batch_size: 8
+num_workers: 2
+train_frac: 0.8
+val_frac: 0.1
+seed: 0

@@ -1,0 +1,5 @@
+# Full QM9S training
+data_dir: data/qm9s/processed
+stages: [stage_a, stage_b, stage_c]
+seeds: [0, 1, 2]
+batch_size: 16

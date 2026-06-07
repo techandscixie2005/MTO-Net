@@ -1,0 +1,11 @@
+# Multi-seed training config
+seeds: [0, 1, 2]
+stage_a:
+  epochs: 50
+  lr: 0.001
+stage_b:
+  epochs: 100
+  lr: 0.0005
+stage_c:
+  epochs: 100
+  lr: 0.0003

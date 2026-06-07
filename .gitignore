@@ -1,12 +1,11 @@
-data/qm9s/*
-!data/qm9s/MANIFEST.json
-!data/qm9s/README.md
+# Data and outputs (never commit)
+data/qm9s/**
 !data/qm9s/.gitkeep
-outputs/*
+outputs/**
 !outputs/.gitkeep
-!outputs/figures/
-!outputs/logs/
-!outputs/metrics/
+!outputs/*/.gitkeep
+
+# Checkpoints and models
 *.pt
 *.pth
 *.ckpt
@@ -16,9 +15,31 @@ outputs/*
 *.h5
 *.tar
 *.zip
+
+# Logs
 *.log
-wandb/
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+.eggs/
+*.egg-info/
+dist/
+build/
+
+# WandB
+wandb/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Conda
 .pytest_cache/

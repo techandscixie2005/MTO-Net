@@ -1,0 +1,8 @@
+# QM9S full dataset config
+data_dir: data/qm9s
+processed_dir: data/qm9s/processed
+batch_size: 8
+num_workers: 2
+train_frac: 0.8
+val_frac: 0.1
+seed: 0
