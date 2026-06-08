@@ -1,0 +1,7 @@
+stage: stage_b
+tasks: [mu, alpha, ir, raman]
+epochs: 100
+lr: 0.0005
+batch_size: 8
+seed: 0
+init_from_stage_a: true

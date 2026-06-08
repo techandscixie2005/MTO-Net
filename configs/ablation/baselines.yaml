@@ -1,0 +1,10 @@
+# Baselines and ablations
+ablations:
+  - direct_readout
+  - sum_pooling
+  - attention_pooling
+  - fixed_k_token
+  - mto_without_sign
+  - full_mto
+data: data/qm9s/subset_medium/processed
+seeds: [0]
