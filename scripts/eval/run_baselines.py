@@ -124,8 +124,9 @@ def main():
     n = len(data)
     print(f"Molecules: {n}")
 
-    split = load_or_create_split(int(n), os.path.join("outputs", "splits"),
-                                  train_frac=0.7, val_frac=0.15)
+    split = load_or_create_split(
+        os.path.join("outputs", "splits"), int(n),
+        train_frac=0.7, val_frac=0.15)
     train_idx, val_idx, test_idx = split_indices_for_seed(split, 0)
 
     train_subset = LazySubset(data, train_idx)
