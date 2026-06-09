@@ -5,11 +5,10 @@ fig16: baseline/ablation summary (bar chart comparison)
 fig17: stage transfer stability (placeholder - needs full Stage B/C runs)
 fig18: frozen probe reuse (placeholder - needs frozen probe experiment)
 """
-import json, os, sys
+import json, os
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np
 
 OUT_DIR = "outputs/figures/final"
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -38,7 +37,6 @@ def make_fig16(baseline_path="outputs/metrics/baselines/baseline_comparison.json
         labels = [METHOD_LABELS.get(n, n) for n in names]
         mu_mae = [r["test"].get("mu", float("nan")) for r in results]
         alpha_mae = [r["test"].get("alpha", float("nan")) for r in results]
-        params = [r["params"] for r in results]
 
         colors = NATURE_COLORS[:len(names)]
 
@@ -146,7 +144,6 @@ def make_spectral_figures(metrics_dir="outputs/metrics"):
 
     # Try loading Stage B smoke metrics
     stage_b_path = os.path.join(metrics_dir, "stage_b_seed100_metrics.json")
-    stage_c_path = os.path.join(metrics_dir, "stage_c_seed101_metrics.json")
 
     if os.path.exists(stage_b_path):
         with open(stage_b_path) as f:
