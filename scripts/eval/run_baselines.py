@@ -14,11 +14,12 @@ import argparse, json, os, sys, time
 import torch
 import numpy as np
 
-# Add project root to path
-_proj_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# proj_root = scripts/eval -> scripts -> repo root
+_proj_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, _proj_root)
 sys.path.insert(0, os.path.join(_proj_root, "third_party", "DetaNet"))
 
+from src.mto.compat import *  # noqa: must be before any DetaNet imports
 from src.mto.mto_model import MTONet
 from src.mto.training import Trainer, NormalizationStats
 from src.mto.dataset_qm9s import load_qm9s_raw, collate_batch
