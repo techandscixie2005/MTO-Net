@@ -261,6 +261,7 @@ def main():
             "maxl": config["model"]["maxl"],
             "num_block": config["model"]["num_block"],
             "rc": config["model"]["rc"],
+            "device": device,
         },
         use_activity_gate=(config["activity_gate"]["mode"] != "none"),
         activity_mode=config["activity_gate"]["mode"],

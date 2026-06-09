@@ -124,7 +124,7 @@ def main():
     n = len(data)
     print(f"Molecules: {n}")
 
-    split = load_or_create_split(n, os.path.join(args.data_dir, "..", "..", "outputs", "splits"),
+    split = load_or_create_split(int(n), os.path.join("outputs", "splits"),
                                   train_frac=0.7, val_frac=0.15)
     train_idx, val_idx, test_idx = split_indices_for_seed(split, 0)
 
