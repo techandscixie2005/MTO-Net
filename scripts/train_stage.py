@@ -116,6 +116,8 @@ def main():
                         help="Generate MTO diagnostic figures")
     parser.add_argument("--spectral-downsample", type=int, default=0,
                         help="Downsample spectral bins to N (0=use all)")
+    parser.add_argument("--spectral-data-dir", default=None,
+                        help="Dir with spectral CSV files (default: same as data-dir)")
     args = parser.parse_args()
 
     config = build_config(args)
@@ -141,6 +143,7 @@ def main():
     tasks, spectral_tasks = get_stage_info(args.stage)
 
     # Load spectral index for Stage B/C - only for needed mol_ids
+    spectral_data_dir = args.spectral_data_dir or args.data_dir
     spectral_index = {}
     if spectral_tasks:
         if n_total < 10000:
@@ -151,10 +154,10 @@ def main():
                     mol_ids_needed.add(int(mol.number))
             log("Loading spectral index for", len(mol_ids_needed), "mols...")
             spectral_index = load_spectral_index_for_subset(
-                args.data_dir, spectral_tasks, mol_ids_needed)
+                spectral_data_dir, spectral_tasks, mol_ids_needed)
         else:
             log("Loading spectral index for:", spectral_tasks)
-            spectral_index = load_spectral_index(args.data_dir, spectral_tasks)
+            spectral_index = load_spectral_index(spectral_data_dir, spectral_tasks)
         for st in spectral_tasks:
             n_idx = len(spectral_index.get(st, {}))
             log(f"  {st}: {n_idx} molecules indexed")
