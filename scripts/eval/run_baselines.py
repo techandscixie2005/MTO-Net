@@ -23,7 +23,7 @@ from src.mto.compat import *  # noqa: must be before any DetaNet imports
 from src.mto.mto_model import MTONet
 from src.mto.training import Trainer, NormalizationStats
 from src.mto.dataset_qm9s import load_qm9s_raw, collate_batch
-from src.mto.data_splits import load_or_create_split, split_indices_for_seed
+from src.mto.data_splits import generate_split, split_indices_for_seed
 from src.mto.config_util import load_yaml_config, merge_configs
 
 
@@ -124,9 +124,8 @@ def main():
     n = len(data)
     print(f"Molecules: {n}")
 
-    split = load_or_create_split(
-        os.path.join("outputs", "splits", "qm9s_split_smoke.json"), int(n),
-        train_frac=0.7, val_frac=0.15)
+    from src.mto.data_splits import generate_split, split_indices_for_seed
+    split = generate_split(int(n), train_frac=0.7, val_frac=0.15, seed=0)
     train_idx, val_idx, test_idx = split_indices_for_seed(split, 0)
 
     train_subset = LazySubset(data, train_idx)
