@@ -22,7 +22,7 @@ class DetaNetBackboneAdapter(nn.Module):
                  max_atomic_number=9, device=None):
         super().__init__()
         if device is None:
-            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            device = torch.device("cpu")
         self.backbone = DetaNet(
             num_features=num_features, maxl=maxl, num_block=num_block,
             rc=rc, max_atomic_number=max_atomic_number,

@@ -8,6 +8,8 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "qm9s")
 
 @pytest.fixture(scope="module")
 def spectral_index():
+    if not os.path.isfile(os.path.join(DATA_DIR, "ir_boraden.csv")):
+        pytest.skip("Spectral CSV files not available locally — test on HPC server")
     from src.mto.dataset_qm9s import load_spectral_index
     return load_spectral_index(DATA_DIR, ["ir"])
 
