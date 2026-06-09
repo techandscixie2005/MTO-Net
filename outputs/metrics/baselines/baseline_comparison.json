@@ -1,0 +1,67 @@
+[
+  {
+    "name": "full_mto",
+    "val": {
+      "mu": 1.230314129590988,
+      "alpha": 19.09611282348633
+    },
+    "test": {
+      "mu": 1.1383273363113404,
+      "alpha": 19.285894870758057
+    },
+    "checkpoint": "outputs/baselines/full_mto/best.pt",
+    "params": 128849
+  },
+  {
+    "name": "no_sign_mto",
+    "val": {
+      "mu": 1.2390732765197754,
+      "alpha": 19.122616577148438
+    },
+    "test": {
+      "mu": 1.1141331970691681,
+      "alpha": 19.316534328460694
+    },
+    "checkpoint": "outputs/baselines/no_sign_mto/best.pt",
+    "params": 128849
+  },
+  {
+    "name": "fixed_k_mto",
+    "val": {
+      "mu": 1.2033089876174927,
+      "alpha": 19.112829303741456
+    },
+    "test": {
+      "mu": 1.1218139350414276,
+      "alpha": 19.308140373229982
+    },
+    "checkpoint": "outputs/baselines/fixed_k_mto/best.pt",
+    "params": 97677
+  },
+  {
+    "name": "direct_readout",
+    "val": {
+      "mu": 1.160381907224655,
+      "alpha": 19.122237110137938
+    },
+    "test": {
+      "mu": 1.1174030423164367,
+      "alpha": 19.315074920654297
+    },
+    "checkpoint": "outputs/baselines/direct_readout/best.pt",
+    "params": 96780
+  },
+  {
+    "name": "attention_pooling",
+    "val": {
+      "mu": 1.172657561302185,
+      "alpha": 19.094559478759766
+    },
+    "test": {
+      "mu": 1.1222304344177245,
+      "alpha": 19.285237884521486
+    },
+    "checkpoint": "outputs/baselines/attention_pooling/best.pt",
+    "params": 101005
+  }
+]
