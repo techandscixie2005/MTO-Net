@@ -2,7 +2,8 @@
 """Train MTO-Net for a specific stage (A/B/C).
 
 Supports: locked dataset splits, checkpoint resume, stage initialization,
-configurable activity gate, config YAML loading with CLI overrides.
+configurable activity gate, config YAML loading with CLI overrides,
+spectral CSV loading for Stage B/C tasks.
 """
 import argparse, json, os, sys, time, datetime
 import torch
@@ -11,7 +12,10 @@ from torch.utils.data import DataLoader
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.mto.mto_model import MTONet
 from src.mto.training import Trainer, NormalizationStats
-from src.mto.dataset_qm9s import load_qm9s_raw, collate_batch
+from src.mto.dataset_qm9s import (
+    load_qm9s_raw, collate_batch, SpectralCollator,
+    load_spectral_index, load_spectral_index_for_subset
+)
 from src.mto.data_splits import load_or_create_split, split_indices_for_seed
 from src.mto.config_util import load_yaml_config, merge_configs, get_nested
 
@@ -21,13 +25,17 @@ def log(*args):
     print(msg, flush=True)
 
 
-def get_stage_tasks(stage):
-    tasks = {
-        "stage_a": ["mu", "alpha"],
-        "stage_b": ["mu", "alpha", "ir", "raman"],
-        "stage_c": ["mu", "alpha", "ir", "raman", "uv"],
+SPECTRAL_TASKS = {"ir", "raman", "uv"}
+
+
+def get_stage_info(stage):
+    """Return (task_list, spectral_tasks) for a stage."""
+    stage_configs = {
+        "stage_a": (["mu", "alpha"], []),
+        "stage_b": (["mu", "alpha", "ir", "raman"], ["ir", "raman"]),
+        "stage_c": (["mu", "alpha", "ir", "raman", "uv"], ["ir", "raman", "uv"]),
     }
-    return tasks[stage]
+    return stage_configs[stage]
 
 
 class LazySubset(torch.utils.data.Dataset):
@@ -57,12 +65,6 @@ def build_config(args):
         yaml_cfg = load_yaml_config(args.config)
         config = merge_configs(config, yaml_cfg)
     # CLI overrides
-    for arg_name in ["feature_dim", "maxl", "num_block", "rc", "lr", "batch_size", "epochs"]:
-        val = getattr(args, arg_name, None)
-        if val is not None:
-            # Check if non-default (simplified: always apply if arg parsed)
-            pass  # handled below
-    # Direct CLI -> config
     if args.feature_dim != 128:
         config["model"]["feature_dim"] = args.feature_dim
     if args.maxl != 3:
@@ -78,9 +80,10 @@ def build_config(args):
     if args.epochs != 50:
         config["train"]["epochs"] = args.epochs
     config["train"]["seed"] = args.seed
-    # Activity gate mode from CLI
     if hasattr(args, "activity_mode") and args.activity_mode is not None:
         config["activity_gate"]["mode"] = args.activity_mode
+    if hasattr(args, "max_mols") and args.max_mols > 0:
+        config["data"]["max_mols"] = args.max_mols
     return config
 
 
@@ -111,6 +114,8 @@ def main():
                         help="Save MTO interpretability cache")
     parser.add_argument("--plot-mto", action="store_true",
                         help="Generate MTO diagnostic figures")
+    parser.add_argument("--spectral-downsample", type=int, default=0,
+                        help="Downsample spectral bins to N (0=use all)")
     args = parser.parse_args()
 
     config = build_config(args)
@@ -133,41 +138,77 @@ def main():
         log("Limited to", len(raw_data), "molecules")
 
     n_total = len(raw_data)
+    tasks, spectral_tasks = get_stage_info(args.stage)
 
-    # Locked split: create once, reuse across seeds
-    os.makedirs(os.path.dirname(args.split_file), exist_ok=True)
-    split, was_created = load_or_create_split(
-        args.split_file, n_total,
-        train_frac=config["data"]["train_frac"],
-        val_frac=config["data"]["val_frac"],
-        seed=config["data"]["split_seed"],
-    )
-    if was_created:
-        log("Created new split file:", args.split_file)
+    # Load spectral index for Stage B/C - only for needed mol_ids
+    spectral_index = {}
+    if spectral_tasks:
+        if n_total < 10000:
+            # Small dataset: load only needed mol IDs
+            mol_ids_needed = set()
+            for mol in raw_data[:n_total]:
+                if hasattr(mol, "number"):
+                    mol_ids_needed.add(int(mol.number))
+            log("Loading spectral index for", len(mol_ids_needed), "mols...")
+            spectral_index = load_spectral_index_for_subset(
+                args.data_dir, spectral_tasks, mol_ids_needed)
+        else:
+            log("Loading spectral index for:", spectral_tasks)
+            spectral_index = load_spectral_index(args.data_dir, spectral_tasks)
+        for st in spectral_tasks:
+            n_idx = len(spectral_index.get(st, {}))
+            log(f"  {st}: {n_idx} molecules indexed")
+
+    spectral_downsample = getattr(args, "spectral_downsample", 0) or 0
+
+    # Build collator with spectral data if available
+    if spectral_tasks and spectral_index:
+        collator = SpectralCollator(spectral_index, spectral_tasks,
+                                     downsample=spectral_downsample)
     else:
-        log("Loaded existing split file:", args.split_file)
+        collator = collate_batch
 
-    train_indices, val_indices, test_indices = split_indices_for_seed(
-        split, args.seed)
+    # Locked split (now redundant - do simple split for smoke tests)
+    if n_total < 1000:
+        # Simple split for smoke tests
+        n_train = max(1, int(n_total * 0.7))
+        n_val = max(1, int(n_total * 0.15))
+        train_indices = list(range(n_train))
+        val_indices = list(range(n_train, n_train + n_val))
+        test_indices = list(range(n_train + n_val, n_total))
+    else:
+        os.makedirs(os.path.dirname(args.split_file), exist_ok=True)
+        split, was_created = load_or_create_split(
+            args.split_file, n_total,
+            train_frac=config["data"]["train_frac"],
+            val_frac=config["data"]["val_frac"],
+            seed=config["data"]["split_seed"],
+        )
+        if was_created:
+            log("Created new split file:", args.split_file)
+        else:
+            log("Loaded existing split file:", args.split_file)
+        train_indices, val_indices, test_indices = split_indices_for_seed(
+            split, args.seed)
     log(f"Train: {len(train_indices)} Val: {len(val_indices)} Test: {len(test_indices)}")
 
-    tasks = get_stage_tasks(args.stage)
     log("Tasks:", tasks)
+    log("Spectral:", spectral_tasks if spectral_tasks else "none")
 
     train_loader = DataLoader(
         LazySubset(raw_data, train_indices),
         batch_size=args.batch_size, shuffle=True,
-        collate_fn=collate_batch, num_workers=0,
+        collate_fn=collator, num_workers=0,
         pin_memory=(device.type == "cuda"),
     )
     val_subset = val_indices[:min(len(val_indices), 2000)]
     val_loader = DataLoader(
         LazySubset(raw_data, val_subset),
         batch_size=args.batch_size, shuffle=False,
-        collate_fn=collate_batch,
+        collate_fn=collator,
     )
 
-    # Normalization stats
+    # Normalization stats (including spectral)
     norm_stats = NormalizationStats()
     log("Computing normalization stats (sampling 2000)...")
     sample_indices = list(range(min(n_total, 2000)))
@@ -184,9 +225,29 @@ def main():
             s = norm_stats.stats[task]
             log(f"  {task}: mean={s['mean']:.4f} std={s['std']:.4f}")
 
-    # Build model
-    out_dims = {"mu": 3, "alpha": 9, "ir": 3501, "raman": 3501, "uv": 601}
+    # Compute spectral normalization stats from spectral index
+    for st in spectral_tasks:
+        idx = spectral_index.get(st, {})
+        if idx:
+            # Sample from spectral index
+            spec_values = []
+            for mol_i in sorted(idx.keys())[:500]:
+                spec_values.append(torch.tensor(idx[mol_i], dtype=torch.float32))
+            if spec_values:
+                norm_stats.fit_tensors(st, spec_values)
+                s = norm_stats.stats[st]
+                log(f"  {st}: mean={s['mean']:.6f} std={s['std']:.6f}")
+
+    # Build model - determine output dimensions
+    spectral_bin_override = getattr(args, "spectral_downsample", 0) or 0
+    out_dims = {
+        "mu": 3, "alpha": 9,
+        "ir": spectral_bin_override if spectral_bin_override > 0 else 3501,
+        "raman": spectral_bin_override if spectral_bin_override > 0 else 3501,
+        "uv": spectral_bin_override if spectral_bin_override > 0 else 701,
+    }
     task_dict = {t: out_dims[t] for t in tasks}
+    log("Output dimensions:", task_dict)
 
     model = MTONet(
         feature_dim=config["model"]["feature_dim"],
@@ -206,6 +267,7 @@ def main():
 
     # Handle --resume and --init-from
     start_epoch = 0
+    ckpt = None
     if args.resume:
         log("Resuming from:", args.resume)
         ckpt = torch.load(args.resume, map_location=device, weights_only=False)
@@ -215,11 +277,11 @@ def main():
 
     if args.init_from:
         log("Initializing from:", args.init_from)
-        ckpt = torch.load(args.init_from, map_location=device, weights_only=False)
+        init_ckpt = torch.load(args.init_from, map_location=device, weights_only=False)
         missing, unexpected = model.load_state_dict(
-            ckpt["model_state_dict"], strict=False)
+            init_ckpt["model_state_dict"], strict=False)
         missing_head_keys = [k for k in missing
-                            if any(h in k for h in ["readout.heads.", "heads."])]
+                           if any(h in k for h in ["readout.heads.", "heads."])]
         missing_backbone_keys = [k for k in missing
                                 if k not in missing_head_keys]
         if missing_head_keys:
@@ -243,7 +305,7 @@ def main():
         theta_epochs=config["train"]["theta_epochs"],
     )
 
-    if args.resume and "optimizer_state_dict" in ckpt:
+    if args.resume and ckpt and "optimizer_state_dict" in ckpt:
         trainer.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
 
     log("Starting training...")
@@ -267,6 +329,7 @@ def main():
         "best_checkpoint": best_path,
         "split_file": args.split_file,
         "tasks": tasks,
+        "spectral_tasks": spectral_tasks,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
     metrics_path = os.path.join(metrics_dir, args.stage + "_seed" + str(args.seed) + "_metrics.json")
@@ -277,12 +340,7 @@ def main():
     if args.save_cache:
         log("Saving MTO cache...")
         from src.mto.analysis.mto_cache import MTOCache, build_mto_cache_entry
-        cache_dir = os.path.join("outputs", "smoke" if args.max_mols > 0 else "",
-                                "cache")
-        if "smoke" in cache_dir:
-            cache_dir = "outputs/smoke/cache"
-        else:
-            cache_dir = "outputs/cache"
+        cache_dir = "outputs/smoke/cache/"
         os.makedirs(cache_dir, exist_ok=True)
         cache = MTOCache(cache_dir, max_molecules=32)
         model.eval()

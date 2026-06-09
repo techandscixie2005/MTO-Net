@@ -1,0 +1,6 @@
+# Stage C evaluation config
+stage: stage_c
+tasks: [mu, alpha, ir, raman, uv]
+checkpoint: outputs/checkpoints/stage_c_seed0/best.pt
+batch_size: 8
+data_dir: data/qm9s

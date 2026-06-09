@@ -1,7 +1,30 @@
+# Stage B: IR/Raman spectral tasks
+# Full training config
 stage: stage_b
-tasks: [mu, alpha, ir, raman]
-epochs: 100
-lr: 0.0005
-batch_size: 8
-seed: 0
+tasks: [mu, alpha, ir_spectrum, raman_spectrum]
+spectral_tasks: [ir, raman]
 init_from_stage_a: true
+activity_gate:
+  type: simple
+model:
+  feature_dim: 128
+  mto_hidden_dim: 64
+  readout_hidden_dim: 128
+  spectral_hidden_dim: 256
+  maxl: 3
+  num_block: 3
+  rc: 5.0
+train:
+  epochs: 100
+  batch_size: 8
+  lr: 0.0005
+  diversity_weight: 0.001
+  entropy_weight: 0.001
+  theta_start: 0.5
+  theta_end: 0.03
+  theta_epochs: 30
+task_weights:
+  mu: 1.0
+  alpha: 1.0
+  ir: 0.3
+  raman: 0.3

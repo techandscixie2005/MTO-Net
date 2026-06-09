@@ -2,6 +2,10 @@ import torch
 
 VALENCE_ELECTRONS = {
     1: 1,   # H
+    2: 2,   # He (inert but needed for completeness)
+    3: 1,   # Li
+    4: 2,   # Be
+    5: 3,   # B
     6: 4,   # C
     7: 5,   # N
     8: 6,   # O

@@ -1,0 +1,35 @@
+# Stage C smoke test: tiny subset, few epochs
+stage: stage_c
+tasks: [mu, alpha, ir_spectrum, raman_spectrum, uv_spectrum]
+spectral_tasks: [ir, raman, uv]
+max_molecules: 32
+activity_gate:
+  type: simple
+  hidden_dim: 64
+train:
+  epochs: 2
+  batch_size: 8
+  lr: 0.0003
+  diversity_weight: 0.0
+  entropy_weight: 0.0
+  theta_start: 0.5
+  theta_end: 0.5
+  theta_epochs: 30
+task_weights:
+  mu: 1.0
+  alpha: 1.0
+  ir: 0.3
+  raman: 0.3
+  uv: 0.1
+model:
+  feature_dim: 64
+  mto_hidden_dim: 32
+  readout_hidden_dim: 64
+  spectral_hidden_dim: 128
+  spectral_bins:
+    ir: 100
+    raman: 100
+    uv: 50
+  maxl: 2
+  num_block: 2
+  rc: 5.0

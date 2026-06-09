@@ -1,6 +1,8 @@
 """Full MTO-Net model: DetaNet backbone + ValenceAdaptiveMTO + readout heads.
 
 Supports configurable activity gate modes: none, simple, fermi_dirac.
+Supports Stage A (mu, alpha), Stage B (+IR, +Raman), Stage C (+UV).
+Spectral tasks use the same readout architecture with appropriate output dimensions.
 """
 import torch
 import torch.nn as nn
