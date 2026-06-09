@@ -133,17 +133,19 @@ def main():
     test_subset = LazySubset(data, test_idx)
     print(f"Train: {len(train_idx)}, Val: {len(val_idx)}, Test: {len(test_idx)}")
 
-    # Norm stats (tiny subset)
+    # Norm stats from training set sample
     norm_stats = NormalizationStats()
-    sample_loader = torch.utils.data.DataLoader(
-        train_subset, batch_size=min(64, len(train_idx)), shuffle=True,
-        collate_fn=collate_batch)
-    for batch in sample_loader:
-        norm_stats.update(batch)
-        break
-    norm_stats.finalize()
-    print(f"Norm: mu_mean={norm_stats.mean.get('mu', 0):.4f}, "
-          f"alpha_mean={norm_stats.mean.get('alpha', 0):.4f}")
+    mu_vals = []
+    alpha_vals = []
+    for i in range(min(100, len(train_idx))):
+        mol = train_subset[i]
+        alpha_flat = mol.polar.reshape(-1).clone()
+        mu_vals.append(mol.dipole.clone())
+        alpha_vals.append(alpha_flat)
+    norm_stats.fit_tensors("mu", mu_vals, max_samples=100)
+    norm_stats.fit_tensors("alpha", alpha_vals, max_samples=100)
+    print(f"Norm: mu_mean={norm_stats.stats.get('mu', {}).get('mean', 0):.4f}, "
+          f"alpha_mean={norm_stats.stats.get('alpha', {}).get('mean', 0):.4f}")
 
     results = []
 
