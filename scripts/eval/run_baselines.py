@@ -14,7 +14,10 @@ import argparse, json, os, sys, time
 import torch
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# Add project root to path
+_proj_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _proj_root)
+sys.path.insert(0, os.path.join(_proj_root, "third_party", "DetaNet"))
 
 from src.mto.mto_model import MTONet
 from src.mto.training import Trainer, NormalizationStats
