@@ -125,7 +125,7 @@ def main():
     print(f"Molecules: {n}")
 
     split = load_or_create_split(
-        os.path.join("outputs", "splits"), int(n),
+        os.path.join("outputs", "splits", "qm9s_split_smoke.json"), int(n),
         train_frac=0.7, val_frac=0.15)
     train_idx, val_idx, test_idx = split_indices_for_seed(split, 0)
 
