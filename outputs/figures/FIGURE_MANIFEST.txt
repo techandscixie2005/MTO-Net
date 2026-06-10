@@ -1,5 +1,5 @@
 # MTO-Net Figure Manifest
-# Last updated: 2026-06-10
+# Last updated: 2026-06-10 (polishing session)
 # Branch: tensor-mto-v2
 
 # ============================================================
@@ -27,7 +27,7 @@ outputs/figures/final/fig10_good_bad_atom_map_comparison.pdf
 outputs/figures/final/fig10_good_bad_atom_map_comparison.png
 outputs/figures/final/fig11_representative_slot_intervention.pdf
 outputs/figures/final/fig11_representative_slot_intervention.png
-outputs/figures/final/fig12_functional_group_enrichment_overview.pdf
+outputs/figures/final/fig12_functional_group_enrichment_overview.pdf   # NOTE: atom-type proxy (RDKit unavailable)
 outputs/figures/final/fig12_functional_group_enrichment_overview.png
 outputs/figures/final/fig13_mu_alpha_functional_group_association.pdf
 outputs/figures/final/fig13_mu_alpha_functional_group_association.png
@@ -37,29 +37,37 @@ outputs/figures/final/fig15_good_bad_functional_group_enrichment.pdf
 outputs/figures/final/fig15_good_bad_functional_group_enrichment.png
 
 # ============================================================
-# Evidence Experiments — FINAL (regenerated from real data 2026-06-10)
+# Evidence Experiments — FINAL
 # ============================================================
 # fig16: Baseline ablation (5 methods × 3 seeds, 5k mols, 20 ep)
-#   - Source: outputs/metrics/baselines/baseline_comparison.json (job 86512)
-#   - Script: scripts/figures/make_figures_16_18.py
-#   - Status: FINAL (normalized + raw MAE, 3 seeds)
+#   Source: outputs/metrics/baselines/baseline_comparison.json
+#   Script: scripts/figures/make_figures_16_18.py
+#   Status: FINAL
 outputs/figures/final/fig16_baseline_ablation_summary.pdf
 outputs/figures/final/fig16_baseline_ablation_summary.png
 
 # fig17: Stage transfer stability (Intra-Stage-A, 3 seeds)
-#   - Source: outputs/stage_transfer/stage_transfer_results.json (job 86517)
-#   - Script: scripts/figures/make_figures_16_18.py
-#   - Status: FINAL (norm + raw MAE, S_sub values, 3 seeds)
+#   Source: outputs/stage_transfer/stage_transfer_results.json
+#   Script: scripts/figures/make_figures_16_18.py
+#   Status: FINAL
 outputs/figures/final/fig17_stage_transfer_stability.pdf
 outputs/figures/final/fig17_stage_transfer_stability.png
 
-# fig18: Frozen probe — PENDING (waiting for job 86515)
-#   - Script: scripts/figures/make_figures_16_18.py
-#   - Status: PENDING
+# fig18: Frozen probe (3 seeds, 3 conditions)
+#   Source: outputs/frozen_probe/frozen_probe_results.json
+#   Source CSV: outputs/figures/source_data/fig18_frozen_probe_reuse.csv
+#   Status: FINAL (publication-grade, nature-figure styling)
+outputs/figures/final/fig18_frozen_probe_reuse.pdf
+outputs/figures/final/fig18_frozen_probe_reuse.png
 
-# fig_supp: Stage B/C smoke — smoke-scale only
+# fig_supp: Stage B/C spectral smoke (PRELIMINARY — smoke-scale only)
 outputs/figures/final/fig_supp_stage_b_spectral_smoke.pdf
 outputs/figures/final/fig_supp_stage_b_spectral_smoke.png
+
+# ============================================================
+# Source Data Files
+# ============================================================
+outputs/figures/source_data/fig18_frozen_probe_reuse.csv
 
 # ============================================================
 # Label-Limited (code exists, no full training data)
@@ -67,13 +75,3 @@ outputs/figures/final/fig_supp_stage_b_spectral_smoke.png
 # IR_prediction_figure.pdf (needs Stage B full run)
 # Raman_prediction_figure.pdf (needs Stage B full run)
 # UV_prediction_figure.pdf (needs Stage C full run)
-
-# ============================================================
-# Debug / Smoke
-# ============================================================
-outputs/figures/debug/smoke/smoke_mto_map.pdf
-outputs/figures/debug/smoke/smoke_mto_map.png
-outputs/figures/one_mto_map.pdf
-outputs/figures/one_mto_map.png
-outputs/figures/stage_a/mto_maps/representative_mto_heatmaps.pdf
-outputs/figures/stage_a/mto_maps/representative_mto_heatmaps.png

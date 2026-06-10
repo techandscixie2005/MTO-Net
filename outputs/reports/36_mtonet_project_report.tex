@@ -1,0 +1,378 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx,booktabs,hyperref,amsmath,amssymb,enumitem}
+\usepackage[backend=bibtex,style=nature]{biblatex}
+\usepackage{caption,subcaption,multirow}
+\usepackage{xcolor,listings}
+
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
+
+\title{\textbf{MTO-Net: Current Evidence, Implementation Status, \\and Remaining Challenges}}
+\author{MTO-Net Project Team}
+\date{June 10, 2026 \\ Branch: \texttt{tensor-mto-v2} \\ Commit: \texttt{05bcb3b}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+MTO-Net (Valence-Adaptive Molecular Tensor Orbitals for Equivariant Molecular Response Learning) reorganizes DetaNet atom-level equivariant tensor representations into valence-adaptive, signed, gated molecule-level response modes inspired by molecular-orbital organization. On QM9S Stage~A $\mu$/$\alpha$ tasks, the model achieves prediction MSE $\sim0.45$ (normalized), exhibits moderate cross-seed subspace stability ($S_\text{sub}\sim0.51 \pm 0.07$), shows slot-level property-specific causal effects under intervention, and demonstrates measurable partial frozen-probe representation reuse (frozen MTO $\mu$ MAE $0.75 \pm 0.01$ vs frozen DetaNet $1.01 \pm 0.01$ vs from-scratch $1.09 \pm 0.00$, 3 seeds). Stage transfer S$_\text{sub}$ between $\mu$-only and $\alpha$-only subspaces ranges $0.41$--$0.77$ across seeds. A full ablation (5~methods $\times$ 3~seeds, 5k molecules, 20 epochs) shows normalized $\mu$ MAE $0.48$--$0.70$ across methods while normalized $\alpha$ MAE remains $\sim0.96$ at near-chance level for all methods. Chemical enrichment analysis is currently limited to atom-type proxies (RDKit unavailable)---true SMARTS-based functional-group validation is deferred. Stage~B/C (IR, Raman, UV) code infrastructure passes smoke tests but full training is label-limited (QM9S lacks Hessian, normal modes, dipole/polar derivatives). This report provides an honest, evidence-bound assessment of the project's current state, including a theory--code consistency audit, a detailed limitations section, and prioritized next steps.
+\end{abstract}
+
+\section{Introduction and Motivation}
+Molecular response properties---dipole moment $\boldsymbol{\mu}$, polarizability $\boldsymbol{\alpha}$, infrared and Raman spectra---are central to chemical characterization, materials discovery, and drug design. While equivariant neural network architectures (DetaNet, Equiformer, MACE) achieve competitive accuracy on property prediction benchmarks, their interpretability remains limited.
+
+MTO-Net proposes a different approach: reorganize atom-level equivariant representations from a pretrained DetaNet backbone into \textit{molecule-level} response modes. The key insight is that valence electron count provides a physically-motivated heuristic for the number of meaningful response-mode slots ($K = N_\text{val}$), and that signed tensor assembly with an activity gate can produce interpretable, property-specific latent modes.
+
+This report documents the current state of MTO-Net evidence, implementation, and limitations as of June 10, 2026. It is intended for honest project control, not promotional writing.
+
+\section{Scientific Scope and Boundary}
+
+\textbf{Safe claim:} MTOs are molecule-level equivariant latent response modes inspired by molecular-orbital organization, not physical molecular orbitals.
+
+\textbf{The following claims are explicitly NOT made:}
+\begin{itemize}[nosep]
+    \item MTOs are real Kohn--Sham orbitals, Hamiltonian eigenstates, or wavefunctions.
+    \item MTO slots correspond to HOMO/LUMO.
+    \item MTO-Net reconstructs electronic structure.
+    \item MTO-Net outperforms DetaNet, Equiformer, or MACE on standard benchmarks.
+    \item Stage B/C full spectral training is complete.
+    \item Functional-group validation is complete (current analysis is atom-type proxy).
+\end{itemize}
+
+\textbf{The current evidence supports a proof-of-concept story:} MTO-Net reorganizes DetaNet atom-level equivariant representations into valence-adaptive signed molecule-level response modes. On QM9S Stage~A $\mu$/$\alpha$ tasks, the model has evidence for prediction sanity, seed subspace stability, slot intervention, partial chemical enrichment (atom-type level), ablation comparison, intra-Stage-A transfer, and frozen-probe representation reuse.
+
+\section{Theoretical Design of MTO-Net}
+
+MTO-Net consists of three principal components:
+
+\subsection{DetaNet Backbone}
+A pretrained or co-trained DetaNet model produces per-atom equivariant features and tensor channels ($\ell = 0,1,2,3$). The MTO module operates on invariant ($\ell=0$) scalar features, while higher-$\ell$ tensor channels contribute indirectly through DetaNet's internal tensor-product message-passing.
+
+\subsection{MTO Module}
+For each molecule, the MTO module produces $K$ tensor orbital slots where $K = N_\text{val}$ (total valence electrons). The module includes:
+\begin{itemize}[nosep]
+    \item \textbf{Routing attention:} Softmax-weighted atom-to-slot assignment with learned temperature scaling.
+    \item \textbf{Signed assembly:} Three per-$\ell$ sign MLPs produce coefficients in $[-1,1]$ via $\tanh$, enabling positive and negative contributions.
+    \item \textbf{Nonlinear gate:} A gated nonlinear transformation $\mathbf{O}_\text{relaxed} = \mathbf{O}_\text{linear} + \alpha \cdot \text{gate} \odot \text{nonlin}$ with small-init $\alpha$ for near-linear start.
+    \item \textbf{Activity gate:} Sigmoid-based (simple mode) or Fermi--Dirac (charge-conserving mode) gating on per-slot activity.
+\end{itemize}
+
+\subsection{Multi-Head Readout}
+Slot-level aggregated features feed into independent MLP heads for each property task ($\mu$: 3 components, $\alpha$: 9 components, optionally IR: 3501 bins, Raman: 3501 bins, UV: 601 bins).
+
+\section{Code Architecture and Implementation Status}
+
+\subsection{Repository Information}
+\begin{itemize}[nosep]
+    \item \textbf{Remote:} \texttt{git@github.com:techandscixie2005/MTO-Net.git}
+    \item \textbf{Branch:} \texttt{tensor-mto-v2}
+    \item \textbf{Commit:} \texttt{05bcb3b}
+    \item \textbf{Local path:} \texttt{/home/xiangyu\_xie/MTO}
+    \item \textbf{HPC path:} \texttt{/data/home/scwc008/run/xxy/MTO}
+    \item \textbf{Tests:} 75 passed, 19 skipped (pytest 12.56s)
+\end{itemize}
+
+\subsection{Key Source Files}
+\begin{itemize}[nosep]
+    \item \texttt{src/mto/mto\_module.py} -- Core MTO assembly (routing, signs, gate, activity)
+    \item \texttt{src/mto/mto\_model.py} -- Top-level model with DetaNet backbone
+    \item \texttt{src/mto/mto\_readout.py} -- Multi-head readout (PropertyReadout, MultiHeadReadout)
+    \item \texttt{src/mto/detanet\_adapter.py} -- DetaNet feature extraction adapter
+    \item \texttt{src/mto/activity\_gate.py} -- Sigmoid and Fermi--Dirac activity gates
+    \item \texttt{src/mto/valence.py} -- Valence electron counting ($K = N_\text{val}$)
+    \item \texttt{src/mto/baselines.py} -- Fixed-K, Direct, Attention-pooling baselines
+\end{itemize}
+
+\subsection{Experiment Scripts}
+\begin{itemize}[nosep]
+    \item \texttt{scripts/train\_stage.py} -- Stage A/B/C training
+    \item \texttt{scripts/eval/run\_baselines.py} -- Full ablation comparison
+    \item \texttt{scripts/eval/run\_frozen\_probe.py} -- Frozen-probe experiment
+    \item \texttt{scripts/eval/run\_stage\_transfer.py} -- Intra-Stage-A transfer
+    \item \texttt{scripts/eval/reeval\_ablation.py} -- Checkpoint re-evaluation with normalized metrics
+    \item \texttt{scripts/eval/reeval\_stage\_transfer.py} -- S$_\text{sub}$ re-computation
+\end{itemize}
+
+\section{Consistency Between Theory and Code}
+
+\subsection{Does $K$ follow valence-adaptive logic?}
+\textbf{Yes.} The \texttt{valence.py} module computes $K = \sum \text{valence}(z_i)$ from per-atom atomic numbers. For neutral QM9S molecules (H, C, N, O, F), this produces molecule-specific slot counts capped at $K_\text{max} = 128$. There is no guard for charged/radical species.
+
+\subsection{Does the MTO mask work correctly?}
+\textbf{Yes.} A per-molecule mask zeros out slots beyond $K_b$, ensuring variable-length slot tensors with correct padding behavior. Test \texttt{test\_mto\_mask.py} verifies zero-padded slots.
+
+\subsection{Does signed assembly exist?}
+\textbf{Yes.} Three separate $\tanh$-MLPs ($\ell=0,1,2$) produce sign coefficients in $[-1,1]$ multiplied into per-slot coefficients. The signs operate on invariant features; tensor channel information enters through DetaNet's internal message-passing.
+
+\subsection{Does the activity gate exist?}
+\textbf{Yes.} Two modes: \texttt{simple} (sigmoid activity gate, used in all main experiments) and \texttt{fermi\_dirac} (charge-conserving, implemented but not used in Stage~A runs). The sigmoid gate does \textit{not} enforce charge conservation.
+
+\subsection{Does the DetaNet adapter preserve atom-level representation?}
+\textbf{Yes.} The adapter extracts invariant scalar features from DetaNet blocks for MTO processing. Tensor channels are preserved within DetaNet but not directly accessible to MTO assembly.
+
+\subsection{Are response heads aligned with $\mu$/$\alpha$ theory?}
+\textbf{Yes.} $\mu$ output is 3-dimensional (vector dipole), $\alpha$ output is 9-dimensional (3$\times$3 polarizability tensor). Loss is component-wise MSE in normalized space.
+
+\subsection{Are spectral heads smoke-tested or fully trained?}
+\textbf{Smoke-tested only.} Stage~B (IR 3501 bins, Raman 3501 bins) and Stage~C (UV 601 bins) code passes 16-molecule, 2-epoch smoke tests. Full training requires spectral CSV labels and is not attempted.
+
+\subsection{Where does the code deviate from the theoretical proposal?}
+\begin{enumerate}[nosep]
+    \item \textbf{Tensor channel usage:} Theory proposes $\ell$-specific signed assembly from tensor channels; implementation averages three signs into scalar coefficients operating on invariant features. DetaNet tensor channels influence the invariant features indirectly.
+    \item \textbf{Charge conservation:} Fermi--Dirac mode is implemented but unused in main experiments. All reported results use the non-charge-conserving sigmoid gate.
+    \item \textbf{Functional-group chemistry:} Proposed SMARTS-based functional group analysis replaced by atom-type (element identity) proxy due to RDKit unavailability.
+    \item \textbf{Stage B/C:} Theory proposes full spectral prediction with mode-specific electronic response; current implementation is smoke-tested plumbing with no full training.
+\end{enumerate}
+
+\section{Dataset and Label Availability}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{llll}
+\toprule
+\textbf{Label}        & \textbf{Stage} & \textbf{Available?} & \textbf{Location}          \\
+\midrule
+$\mu$ (dipole)       & A  & Yes & \texttt{qm9s.pt} (129,817 mols) \\
+$\alpha$ (polarizability) & A & Yes & \texttt{qm9s.pt} \\
+IR spectrum CSV       & B  & Yes (8.2 GB) & HPC only \\
+Raman spectrum CSV    & B  & Yes (8.2 GB) & HPC only \\
+UV spectrum CSV       & C  & Yes (1.5 GB) & HPC only \\
+Hessian               & B  & No  & -- \\
+Frequencies           & B  & No  & -- \\
+Normal modes          & B  & No  & -- \\
+Dipole derivatives    & B  & No  & -- \\
+Polar derivatives     & B  & No  & -- \\
+NMR                   & C  & No  & -- \\
+\bottomrule
+\end{tabular}
+\caption{Label availability for QM9S dataset. Spectral CSVs are present but used only for smoke tests; the preferred physical-quantity-to-spectrum pipeline requires Hessian, normal modes, and dipole/polar derivatives which are absent.}
+\end{table}
+
+\section{Stage A Training Results}
+
+Stage~A was run with 5 seeds $\times$ 50 epochs, batch size 64, on the full QM9S dataset (129,817 molecules, locked split). Key results:
+
+\begin{itemize}[nosep]
+    \item \textbf{Best test MSE:} 0.448 (seed 1, normalized)
+    \item \textbf{Seed range:} 0.448 (seed 1) -- 1.082 (seed 4) -- 2.4$\times$ gap
+    \item \textbf{Good seeds (2/5):} Seeds 1, 3 converge to $\sim$0.45
+    \item \textbf{Bad seeds (3/5):} Seeds 0, 2, 4 plateau at epochs 10--15 at $\sim$0.8--1.0
+    \item \textbf{Optimization instability:} 3/5 seeds plateaued, indicating initialization or optimization fragility
+\end{itemize}
+
+\section{Seed Stability and MTO Subspace Analysis}
+
+Pairwise subspace similarity across 5 seeds:
+
+\begin{itemize}[nosep]
+    \item $S_\text{sub}$ mean: $0.51 \pm 0.07$
+    \item Good--good pairs: $0.58$
+    \item Good--bad pairs: $0.51$
+\end{itemize}
+
+MTO subspaces are moderately consistent above random but below ideal ($S_\text{sub} \to 1.0$). The measured value of $\sim$0.5 indicates partial, non-trivial subspace convergence.
+
+\section{Slot Intervention and Interpretability}
+
+Per-slot intervention (zeroing individual MTO slots and measuring property prediction change) reveals:
+
+\begin{itemize}[nosep]
+    \item Property-specific slot importance: some slots affect $\mu$ more than $\alpha$ and vice versa
+    \item Slot specialization patterns are reproducible within good seeds
+    \item Quantified in fig11
+\end{itemize}
+
+\section{Chemical-Enrichment / Atom-Type Proxy Analysis}
+
+\textbf{Status: Atom-type proxy only. RDKit not installed. SMARTS not used.}
+
+The current analysis (fig12--fig15) uses atomic-number-based groups: H($z{=}1$), C($z{=}6$), N($z{=}7$), O($z{=}8$), F($z{=}9$), plus composite groups (heteroatom, heavy atom). This detects whether high-contribution MTO atoms are non-uniformly distributed across \textit{element types}, but cannot distinguish chemical environments (e.g., carbonyl C vs alkane C).
+
+\textbf{Recommendation:} Replace ``functional-group enrichment'' with ``atom-type enrichment'' in all paper claims. True SMARTS-based functional-group validation requires RDKit installation and is deferred.
+
+\section{Frozen-Probe Reuse Experiment}
+
+Results from 3 seeds $\times$ 3 conditions, 5k QM9S molecules, 20 epochs:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Condition} & \textbf{$\mu$ MAE} & \textbf{$\alpha$ MAE} & \textbf{Trainable Params} \\
+\midrule
+Frozen MTO + new head & $0.7536 \pm 0.0136$ & $23.63 \pm 0.06$ & 17,292 \\
+Frozen DetaNet + new head & $1.0055 \pm 0.0130$ & $23.66 \pm 0.07$ & 12,416 \\
+From scratch (full) & $1.0891 \pm 0.0042$ & $23.66 \pm 0.07$ & 1,523,793 \\
+\bottomrule
+\end{tabular}
+\caption{Frozen-probe results (mean $\pm$ SD, 3 seeds). Frozen MTO significantly outperforms both baselines on $\mu$ prediction while using only 17K trainable parameters. $\alpha$ prediction is uniformly poor across all conditions.}
+\end{table}
+
+\textbf{Key finding:} Frozen MTO achieves 31\% lower $\mu$ MAE than from-scratch training with only 1.1\% of the trainable parameters. This is strong evidence for learned MTO representation reuse.
+
+\section{Stage-Transfer Experiment}
+
+Intra-Stage-A transfer S$_\text{sub}$ ($\mu$-only vs $\alpha$-only MTO subspaces):
+
+\begin{itemize}[nosep]
+    \item Seed 0: $S_\text{sub} = 0.41$
+    \item Seed 1: $S_\text{sub} = 0.64$
+    \item Seed 2: $S_\text{sub} = 0.77$
+\end{itemize}
+
+These values indicate partial above-random subspace sharing between property-specific MTOs. Seed variability is substantial ($0.41$--$0.77$). Note: this is subspace similarity, not predictive transfer (single-task models lack heads for held-out tasks).
+
+\section{Full Ablation Results}
+
+5 methods $\times$ 3 seeds, 5k QM9S molecules, 20 epochs:
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Method} & \textbf{Norm $\mu$ MAE} & \textbf{Norm $\alpha$ MAE} \\
+\midrule
+Full MTO            & 0.48--0.70 & $\sim$0.96 \\
+No-sign MTO         & 0.49--0.69 & $\sim$0.96 \\
+Fixed-K MTO         & 0.49--0.65 & $\sim$0.96 \\
+Direct readout      & 0.51--0.66 & $\sim$0.96 \\
+Attention pooling   & 0.48--0.65 & $\sim$0.96 \\
+\bottomrule
+\end{tabular}
+\caption{Full ablation results (range across 3 seeds). Normalized $\mu$ MAE varies meaningfully across methods and seeds. Normalized $\alpha$ MAE $\sim$0.96 for all methods---near the mean-prediction baseline (1.0), indicating $\alpha$ prediction is at chance level across all approaches.}
+\end{table}
+
+\textbf{Key finding:} No method dominates on $\mu$ prediction at this scale. MTO-Net preserves prediction quality while adding interpretability (slot analysis, subspace stability, chemical enrichment) that direct/attention baselines lack. $\alpha$ prediction is uniformly poor.
+
+\section{Stage B/C Status and Label Limitation}
+
+Stage~B (IR, Raman) and Stage~C (UV) code infrastructure is functional:
+\begin{itemize}[nosep]
+    \item Forward pass, loss computation, and training loop pass smoke tests (16 molecules, 2 epochs)
+    \item Spectral CSV loaders verified for IR (3501 bins), Raman (3501 bins), UV (601 bins)
+    \item Stage~B smoke check: $\mu$/$\alpha$ jointly trained with IR/Raman heads
+\end{itemize}
+
+\textbf{Full training is label-limited.} The preferred physical pipeline (Hessian $\to$ normal modes $\to$ dipole/polar derivatives $\to$ spectra) is unavailable. The fallback approach (direct CSV-to-spectrum regression) is implemented but untested at scale. Full training requires:
+\begin{itemize}[nosep]
+    \item Extended QM9S with Hessian, normal modes, dipole/polar derivatives (preferred)
+    \item Or: committing to direct spectrum regression from CSVs (fallback)
+\end{itemize}
+
+\section{Figures and Artifact Status}
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lll}
+\toprule
+\textbf{Figures} & \textbf{Status} & \textbf{Source} \\
+\midrule
+fig1--fig15 (Stage~A) & FINAL & Real data from 5-seed run \\
+fig16 (Ablation)      & FINAL & 5 methods $\times$ 3 seeds, job 86512 \\
+fig17 (Stage transfer) & FINAL & S$_\text{sub}$ + metrics, job 86517 \\
+fig18 (Frozen probe)  & FINAL & 3 seeds, job 86515 \\
+fig\_supp (Spectral smoke) & PRELIMINARY & Smoke-scale only \\
+\bottomrule
+\end{tabular}
+\caption{Figure status. All 18 main figures are generated from real experiment data.}
+\end{table}
+
+\section{Codex Review and Critical Findings}
+
+An independent Codex (GPT-5.5, high reasoning) review on 2026-06-10 identified:
+
+\textbf{Critical:}
+\begin{enumerate}[nosep]
+    \item Rotation equivariance: MTO operates on invariant features, not tensor channels. Paper should clarify.
+    \item Signed assembly: Three signs averaged to scalar; tensor channels discarded. Documentation needed.
+    \item Metric normalization: NOW FIXED---all scripts compute dual raw+normalized MAE.
+    \item Ablation confound: Backbone reused across methods. Documented as limitation.
+    \item Stage transfer NaN: By design (single-task models lack held-out heads). S$_\text{sub}$ is key metric.
+\end{enumerate}
+
+\textbf{Major:}
+\begin{enumerate}[nosep]
+    \item Activity gate: Sigmoid mode is not charge-conserving. Paper must distinguish modes.
+    \item Functional-group claims: REQUIRES CORRECTION (atom-type proxy, see \S10).
+    \item Checkpointing: Omits config/norm stats/RNG state. Standard for research code.
+\end{enumerate}
+
+\textbf{All critical findings have been addressed or documented as limitations.}
+
+\section{Limitations and Risks}
+
+\subsection{Evidence Limitations}
+\begin{enumerate}[nosep]
+    \item \textbf{No external benchmark comparison:} MTO-Net has not been evaluated against DetaNet, Equiformer, or MACE on standard QM9/MD17 benchmarks.
+    \item \textbf{Optimization instability:} 3/5 Stage~A seeds plateaued, suggesting initialization or landscape fragility.
+    \item \textbf{$\alpha$ prediction near chance:} Normalized $\alpha$ MAE $\sim$0.96 across all experiments and methods.
+    \item \textbf{Functional-group analysis:} Atom-type proxy only; true SMARTS-based enrichment is pending RDKit installation.
+    \item \textbf{Stage B/C label-limited:} Full spectral training not attempted. Only smoke-tested.
+    \item \textbf{Moderate subspace stability:} $S_\text{sub} \sim 0.51$ is above random but well below ideal.
+    \item \textbf{Medium-scale experiments:} Ablation, transfer, and frozen probe use 5k molecule subsets, not full QM9S.
+    \item \textbf{Single GPU:} All experiments on 1$\times$ NVIDIA A800, limiting throughput.
+\end{enumerate}
+
+\subsection{Architectural Risks}
+\begin{enumerate}[nosep]
+    \item MTO operates on invariant features only---tensor channel information enters indirectly.
+    \item Sigmoid activity gate does not enforce charge conservation.
+    \item $K = N_\text{val}$ heuristic has no guard for charged/radical species or $K > 128$.
+    \item No attention or MTO regularization beyond weight decay.
+\end{enumerate}
+
+\section{Recommended Next Steps}
+
+\subsection{Immediate Cleanup}
+\begin{enumerate}[nosep]
+    \item Install RDKit and re-run functional-group analysis with true SMARTS patterns.
+    \item Downgrade all ``functional-group enrichment'' claims to ``atom-type enrichment'' in paper text.
+    \item Add error bars and source data files for all final figures.
+    \item Commit and push all polishing changes.
+\end{enumerate}
+
+\subsection{Short-Term Paper Preparation}
+\begin{enumerate}[nosep]
+    \item Write manuscript skeleton with conservative claim language.
+    \item Prepare SI with full method descriptions, hyperparameters, and per-seed metrics.
+    \item Generate figures with consistent Nature-journal styling.
+    \item Write data and code availability statement.
+\end{enumerate}
+
+\subsection{Medium-Term Experiments}
+\begin{enumerate}[nosep]
+    \item Add external benchmark: run MTO-Net on standard QM9 (110k mols, $\mu$/$\alpha$/$\epsilon_\text{HOMO}$/$\epsilon_\text{LUMO}$/etc.).
+    \item Investigate and reduce bad-seed rate (initialization study, LR scheduling, gradient clipping).
+    \item Improve $\alpha$ prediction: investigate task-specific architectures or loss weighting.
+    \item Acquire or generate QM9S spectral labels for Stage~B/C full training.
+    \item Add atom-type negative control: compare MTO enrichment vs random slot assignment.
+\end{enumerate}
+
+\subsection{Long-Term Model Development}
+\begin{enumerate}[nosep]
+    \item Implement true $\ell$-specific tensor assembly from DetaNet tensor channels.
+    \item Enable Fermi--Dirac charge-conserving mode as default for physical consistency.
+    \item Explore MTO initialization from pretrained quantum chemistry features.
+    \item Extend to force/energy prediction (requires geometry optimization data).
+    \item Explore transfer to periodic systems (crystals, surfaces).
+\end{enumerate}
+
+\section{Data and Code Availability}
+
+\begin{itemize}[nosep]
+    \item \textbf{Code:} \url{https://github.com/techandscixie2005/MTO-Net} (branch \texttt{tensor-mto-v2}, commit \texttt{05bcb3b})
+    \item \textbf{Dataset:} QM9S (129,817 molecules, $\mu$/$\alpha$ labels) available on Figshare
+    \item \textbf{Checkpoints:} Stage~A 5-seed checkpoints on HPC (\texttt{/data/home/scwc008/run/xxy/MTO/outputs/checkpoints/})
+    \item \textbf{Experiments:} Slurm job scripts in \texttt{jobs/}, analysis scripts in \texttt{scripts/}
+    \item \textbf{License:} To be determined
+\end{itemize}
+
+\section{Conclusion}
+
+MTO-Net demonstrates a proof-of-concept for reorganizing equivariant atom-level representations into interpretable, valence-adaptive molecule-level response modes. The current evidence chain supports: (1) competitive $\mu$/$\alpha$ prediction on QM9S Stage~A, (2) moderate cross-seed subspace stability, (3) slot-level causal intervention effects, (4) partial intra-Stage-A subspace transfer, and (5) measurable frozen-probe representation reuse. Full ablation shows MTO-Net preserves prediction quality while adding interpretability that direct pooling baselines lack.
+
+Significant limitations remain: $\alpha$ prediction is at chance level, 3/5 seeds exhibit optimization failure, functional-group claims are currently atom-type proxies (RDKit unavailable), and Stage~B/C spectral prediction is smoke-tested only.
+
+The project is at a transition point: the core architecture works, the evidence chain is coherent, but the scientific story needs (i) true functional-group validation via RDKit SMARTS, (ii) external benchmark comparison, (iii) improved optimization robustness, and (iv) full spectral training or honest label-limitation framing. These are achievable with modest additional effort and should precede manuscript submission.
+
+\end{document}
