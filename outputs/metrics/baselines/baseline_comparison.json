@@ -1,67 +1,197 @@
 [
   {
-    "name": "full_mto",
-    "val": {
-      "mu": 1.230314129590988,
-      "alpha": 19.09611282348633
+    "seed": 0,
+    "method": "full_mto",
+    "test_raw": {
+      "mu": 1.0466645664357124,
+      "alpha": 23.594868244008815
     },
-    "test": {
-      "mu": 1.1383273363113404,
-      "alpha": 19.285894870758057
+    "test_norm": {
+      "mu": 0.6596892701184496,
+      "alpha": 0.9572701346366963
     },
-    "checkpoint": "outputs/baselines/full_mto/best.pt",
-    "params": 128849
+    "params": 1439761
   },
   {
-    "name": "no_sign_mto",
-    "val": {
-      "mu": 1.2390732765197754,
-      "alpha": 19.122616577148438
+    "seed": 0,
+    "method": "no_sign_mto",
+    "test_raw": {
+      "mu": 1.0915515651094152,
+      "alpha": 23.604561288306055
     },
-    "test": {
-      "mu": 1.1141331970691681,
-      "alpha": 19.316534328460694
+    "test_norm": {
+      "mu": 0.687980536450731,
+      "alpha": 0.9576633984738208
     },
-    "checkpoint": "outputs/baselines/no_sign_mto/best.pt",
-    "params": 128849
+    "params": 1439761
   },
   {
-    "name": "fixed_k_mto",
-    "val": {
-      "mu": 1.2033089876174927,
-      "alpha": 19.112829303741456
+    "seed": 0,
+    "method": "fixed_k_mto",
+    "test_raw": {
+      "mu": 1.0343019651605727,
+      "alpha": 23.615412945443012
     },
-    "test": {
-      "mu": 1.1218139350414276,
-      "alpha": 19.308140373229982
+    "test_norm": {
+      "mu": 0.6518973952278178,
+      "alpha": 0.9581036504278791
     },
-    "checkpoint": "outputs/baselines/fixed_k_mto/best.pt",
-    "params": 97677
+    "params": 1387981
   },
   {
-    "name": "direct_readout",
-    "val": {
-      "mu": 1.160381907224655,
-      "alpha": 19.122237110137938
+    "seed": 0,
+    "method": "direct_readout",
+    "test_raw": {
+      "mu": 1.0481817183342386,
+      "alpha": 23.585871696472168
     },
-    "test": {
-      "mu": 1.1174030423164367,
-      "alpha": 19.315074920654297
+    "test_norm": {
+      "mu": 0.6606454903140981,
+      "alpha": 0.956905131327345
     },
-    "checkpoint": "outputs/baselines/direct_readout/best.pt",
-    "params": 96780
+    "params": 1385036
   },
   {
-    "name": "attention_pooling",
-    "val": {
-      "mu": 1.172657561302185,
-      "alpha": 19.094559478759766
+    "seed": 0,
+    "method": "attention_pooling",
+    "test_raw": {
+      "mu": 1.0368317340282684,
+      "alpha": 23.583589665433195
     },
-    "test": {
-      "mu": 1.1222304344177245,
-      "alpha": 19.285237884521486
+    "test_norm": {
+      "mu": 0.6534918518142497,
+      "alpha": 0.9568125478764797
     },
-    "checkpoint": "outputs/baselines/attention_pooling/best.pt",
-    "params": 101005
+    "params": 1393357
+  },
+  {
+    "seed": 1,
+    "method": "full_mto",
+    "test_raw": {
+      "mu": 0.9340740543730716,
+      "alpha": 23.673207770002648
+    },
+    "test_norm": {
+      "mu": 0.5951427582730638,
+      "alpha": 0.987727534263692
+    },
+    "params": 1439761
+  },
+  {
+    "seed": 1,
+    "method": "no_sign_mto",
+    "test_raw": {
+      "mu": 0.9662180714150692,
+      "alpha": 23.68187966245286
+    },
+    "test_norm": {
+      "mu": 0.6156232322150088,
+      "alpha": 0.9880893433347662
+    },
+    "params": 1439761
+  },
+  {
+    "seed": 1,
+    "method": "fixed_k_mto",
+    "test_raw": {
+      "mu": 0.7759836049790078,
+      "alpha": 23.638838595532356
+    },
+    "test_norm": {
+      "mu": 0.4944158697381933,
+      "alpha": 0.9862935352832713
+    },
+    "params": 1387981
+  },
+  {
+    "seed": 1,
+    "method": "direct_readout",
+    "test_raw": {
+      "mu": 0.8056460076824148,
+      "alpha": 23.682234906135722
+    },
+    "test_norm": {
+      "mu": 0.5133151887579167,
+      "alpha": 0.9881041874276831
+    },
+    "params": 1385036
+  },
+  {
+    "seed": 1,
+    "method": "attention_pooling",
+    "test_raw": {
+      "mu": 0.7756205350160599,
+      "alpha": 23.66035208803542
+    },
+    "test_norm": {
+      "mu": 0.4941845366612394,
+      "alpha": 0.987191156504002
+    },
+    "params": 1393357
+  },
+  {
+    "seed": 2,
+    "method": "full_mto",
+    "test_raw": {
+      "mu": 0.9853786128632566,
+      "alpha": 23.753912621356072
+    },
+    "test_norm": {
+      "mu": 0.6215709676133826,
+      "alpha": 0.977910578884977
+    },
+    "params": 1439761
+  },
+  {
+    "seed": 2,
+    "method": "no_sign_mto",
+    "test_raw": {
+      "mu": 0.9994423173843546,
+      "alpha": 23.731192467060495
+    },
+    "test_norm": {
+      "mu": 0.6304422604276779,
+      "alpha": 0.9769752247536436
+    },
+    "params": 1439761
+  },
+  {
+    "seed": 2,
+    "method": "fixed_k_mto",
+    "test_raw": {
+      "mu": 0.842792828349357,
+      "alpha": 23.70740096112515
+    },
+    "test_norm": {
+      "mu": 0.5316287035003622,
+      "alpha": 0.9759957650874523
+    },
+    "params": 1387981
+  },
+  {
+    "seed": 2,
+    "method": "direct_readout",
+    "test_raw": {
+      "mu": 0.9164148153776818,
+      "alpha": 23.736930755858726
+    },
+    "test_norm": {
+      "mu": 0.5780690242635443,
+      "alpha": 0.9772114582518314
+    },
+    "params": 1385036
+  },
+  {
+    "seed": 2,
+    "method": "attention_pooling",
+    "test_raw": {
+      "mu": 0.7688643612126087,
+      "alpha": 23.70878070466062
+    },
+    "test_norm": {
+      "mu": 0.4849950629980006,
+      "alpha": 0.9760525600707277
+    },
+    "params": 1393357
   }
 ]

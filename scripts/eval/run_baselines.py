@@ -103,14 +103,16 @@ class SimpleTrainer:
                 best_val = val_loss
                 best_path = os.path.join(ckpt_dir, "best.pt")
                 torch.save({"model_state_dict": self.model.state_dict()}, best_path)
-            if epoch == 0:
+            if epoch % 5 == 0 or epoch == epochs - 1:
                 print(f"  epoch {epoch:3d} | train: {train_loss:.4f} | val: {val_loss:.4f}")
         return best_val, best_path or os.path.join(ckpt_dir, "best.pt")
 
 
-def evaluate_model(model, loader, device, tasks):
+def evaluate_model(model, loader, device, tasks, mu_mean=0.0, mu_std=1.0, alpha_mean=0.0, alpha_std=1.0):
+    """Evaluate model returning both raw and normalized MAE."""
     model.eval()
-    errors = {t: [] for t in tasks}
+    raw_errors = {t: [] for t in tasks}
+    norm_errors = {t: [] for t in tasks}
     with torch.no_grad():
         for batch in loader:
             z = batch["z"].to(device)
@@ -119,10 +121,23 @@ def evaluate_model(model, loader, device, tasks):
             out = model(z=z, pos=pos, batch=batch_idx)
             for t in tasks:
                 if t in out and t in batch:
-                    diff = (out[t] - batch[t].to(device)).abs().mean().item()
-                    errors[t].append(diff)
-    return {t: float(np.mean(vs)) if vs else float("nan")
-            for t, vs in errors.items()}
+                    target = batch[t].to(device)
+                    raw_diff = (out[t] - target).abs().mean().item()
+                    raw_errors[t].append(raw_diff)
+                    if t == "mu":
+                        target_norm = (target - mu_mean) / max(mu_std, 1e-6)
+                        pred_norm = (out[t] - mu_mean) / max(mu_std, 1e-6)
+                    elif t == "alpha":
+                        target_norm = (target - alpha_mean) / max(alpha_std, 1e-6)
+                        pred_norm = (out[t] - alpha_mean) / max(alpha_std, 1e-6)
+                    else:
+                        target_norm = target
+                        pred_norm = out[t]
+                    norm_diff = (pred_norm - target_norm).abs().mean().item()
+                    norm_errors[t].append(norm_diff)
+    raw = {t: float(np.mean(vs)) if vs else float("nan") for t, vs in raw_errors.items()}
+    norm = {t: float(np.mean(vs)) if vs else float("nan") for t, vs in norm_errors.items()}
+    return raw, norm
 
 
 def run_baseline(name, model, tasks, train_loader, val_loader, test_loader,
@@ -135,10 +150,14 @@ def run_baseline(name, model, tasks, train_loader, val_loader, test_loader,
 
     ckpt = torch.load(best_path, map_location=device, weights_only=False)
     model.load_state_dict(ckpt["model_state_dict"])
-    val_m = evaluate_model(model, val_loader, device, tasks)
-    test_m = evaluate_model(model, test_loader, device, tasks)
-    print(f"  Val:  {val_m}\n  Test: {test_m}")
-    return {"name": name, "val": val_m, "test": test_m,
+    raw_val, norm_val = evaluate_model(model, val_loader, device, tasks,
+                                       mu_mean, mu_std, alpha_mean, alpha_std)
+    raw_test, norm_test = evaluate_model(model, test_loader, device, tasks,
+                                         mu_mean, mu_std, alpha_mean, alpha_std)
+    print(f"  Val raw:  {raw_val} | Val norm: {norm_val}")
+    print(f"  Test raw: {raw_test} | Test norm: {norm_test}")
+    return {"name": name, "val_raw": raw_val, "val_norm": norm_val,
+            "test_raw": raw_test, "test_norm": norm_test,
             "checkpoint": best_path,
             "params": sum(p.numel() for p in model.parameters())}
 
@@ -252,13 +271,13 @@ def main():
 
     # Summary
     print("\n" + "=" * 70)
-    print("  BASELINE COMPARISON SUMMARY")
+    print("  BASELINE COMPARISON SUMMARY (mu/alpha MAE)")
     print("=" * 70)
-    print(f"{'Method':<25s} {'mu MAE':>10s} {'alpha MAE':>10s} {'Params':>10s}")
-    print("-" * 55)
+    print(f"{'Method':<25s} {'mu_raw':>8s} {'mu_norm':>8s} {'a_raw':>8s} {'a_norm':>8s} {'Params':>10s}")
+    print("-" * 67)
     for r in results:
-        print(f"{r['name']:<25s} {r['test'].get('mu', 0):>10.4f} "
-              f"{r['test'].get('alpha', 0):>10.4f} {r['params']:>10d}")
+        print(f"{r['name']:<25s} {r['test_raw'].get('mu', 0):>8.4f} {r['test_norm'].get('mu', 0):>8.4f} "
+              f"{r['test_raw'].get('alpha', 0):>8.4f} {r['test_norm'].get('alpha', 0):>8.4f} {r['params']:>10d}")
     print("=" * 70)
 
 

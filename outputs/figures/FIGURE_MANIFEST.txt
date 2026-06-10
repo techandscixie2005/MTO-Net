@@ -1,42 +1,32 @@
 # MTO-Net Figure Manifest
-# Generated: 2026-06-09
+# Last updated: 2026-06-10
 # Branch: tensor-mto-v2
 
 # ============================================================
-# Stage A — Full results (15 figures, both PDF and PNG)
+# Stage A — FINAL (15 figures, real data, PDF + PNG)
 # ============================================================
-
-# Prediction & Stability
-outputs/figures/final/fig1_seed_performance.pdf           # Bar chart: test MSE/MSE per seed
+outputs/figures/final/fig1_seed_performance.pdf
 outputs/figures/final/fig1_seed_performance.png
-outputs/figures/final/fig2_seed_subspace_stability.pdf     # Heatmap: pairwise S_sub across seeds
+outputs/figures/final/fig2_seed_subspace_stability.pdf
 outputs/figures/final/fig2_seed_subspace_stability.png
-outputs/figures/final/fig3_training_dynamics.pdf           # Loss curves: train/val across epochs
+outputs/figures/final/fig3_training_dynamics.pdf
 outputs/figures/final/fig3_training_dynamics.png
-
-# MTO Overview
-outputs/figures/final/fig4_mto_cache_overview.pdf          # Activity distribution, slot usage
+outputs/figures/final/fig4_mto_cache_overview.pdf
 outputs/figures/final/fig4_mto_cache_overview.png
-outputs/figures/final/fig5_good_bad_mto_comparison.pdf     # Good seed vs bad seed MTO maps
+outputs/figures/final/fig5_good_bad_mto_comparison.pdf
 outputs/figures/final/fig5_good_bad_mto_comparison.png
-outputs/figures/final/fig6_property_specific_mto_usage.pdf # Which slots serve mu vs alpha
+outputs/figures/final/fig6_property_specific_mto_usage.pdf
 outputs/figures/final/fig6_property_specific_mto_usage.png
-outputs/figures/final/fig7_mu_alpha_specialization.pdf     # Property response specialization
+outputs/figures/final/fig7_mu_alpha_specialization.pdf
 outputs/figures/final/fig7_mu_alpha_specialization.png
-
-# Atom Maps
-outputs/figures/final/fig8_representative_mto_atom_maps.pdf    # MTO atom contribution maps
+outputs/figures/final/fig8_representative_mto_atom_maps.pdf
 outputs/figures/final/fig8_representative_mto_atom_maps.png
-outputs/figures/final/fig9_good_seed_atom_map_consistency.pdf  # Cross-seed map correlation
+outputs/figures/final/fig9_good_seed_atom_map_consistency.pdf
 outputs/figures/final/fig9_good_seed_atom_map_consistency.png
 outputs/figures/final/fig10_good_bad_atom_map_comparison.pdf
 outputs/figures/final/fig10_good_bad_atom_map_comparison.png
-
-# Intervention
-outputs/figures/final/fig11_representative_slot_intervention.pdf  # Per-slot delta property
+outputs/figures/final/fig11_representative_slot_intervention.pdf
 outputs/figures/final/fig11_representative_slot_intervention.png
-
-# Chemical Validation
 outputs/figures/final/fig12_functional_group_enrichment_overview.pdf
 outputs/figures/final/fig12_functional_group_enrichment_overview.png
 outputs/figures/final/fig13_mu_alpha_functional_group_association.pdf
@@ -47,14 +37,36 @@ outputs/figures/final/fig15_good_bad_functional_group_enrichment.pdf
 outputs/figures/final/fig15_good_bad_functional_group_enrichment.png
 
 # ============================================================
-# PENDING — Requires HPC runs or further work
+# Evidence Experiments — FINAL (regenerated from real data 2026-06-10)
 # ============================================================
-# fig16_baseline_ablation_summary.pdf        (needs baseline runs)
-# fig17_stage_transfer_stability.pdf          (needs Stage B/C full runs)
-# fig18_frozen_probe_reuse.pdf               (needs frozen probe experiment)
-# IR_prediction_figure.pdf                   (needs Stage B full run)
-# Raman_prediction_figure.pdf                (needs Stage B full run)
-# UV_prediction_figure.pdf                   (needs Stage C full run)
+# fig16: Baseline ablation (5 methods × 3 seeds, 5k mols, 20 ep)
+#   - Source: outputs/metrics/baselines/baseline_comparison.json (job 86512)
+#   - Script: scripts/figures/make_figures_16_18.py
+#   - Status: FINAL (normalized + raw MAE, 3 seeds)
+outputs/figures/final/fig16_baseline_ablation_summary.pdf
+outputs/figures/final/fig16_baseline_ablation_summary.png
+
+# fig17: Stage transfer stability (Intra-Stage-A, 3 seeds)
+#   - Source: outputs/stage_transfer/stage_transfer_results.json (job 86517)
+#   - Script: scripts/figures/make_figures_16_18.py
+#   - Status: FINAL (norm + raw MAE, S_sub values, 3 seeds)
+outputs/figures/final/fig17_stage_transfer_stability.pdf
+outputs/figures/final/fig17_stage_transfer_stability.png
+
+# fig18: Frozen probe — PENDING (waiting for job 86515)
+#   - Script: scripts/figures/make_figures_16_18.py
+#   - Status: PENDING
+
+# fig_supp: Stage B/C smoke — smoke-scale only
+outputs/figures/final/fig_supp_stage_b_spectral_smoke.pdf
+outputs/figures/final/fig_supp_stage_b_spectral_smoke.png
+
+# ============================================================
+# Label-Limited (code exists, no full training data)
+# ============================================================
+# IR_prediction_figure.pdf (needs Stage B full run)
+# Raman_prediction_figure.pdf (needs Stage B full run)
+# UV_prediction_figure.pdf (needs Stage C full run)
 
 # ============================================================
 # Debug / Smoke
